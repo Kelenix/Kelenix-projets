@@ -1,36 +1,87 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kelenix — Gérez vos projets, simplement.
 
-## Getting Started
+Gestion de projets pour un freelance (seul ou en petite équipe) : où en est chaque projet,
+quoi faire ensuite, qui est responsable, ce qui est en retard ou bloqué.
 
-First, run the development server:
+- **Deux pages** : connexion (`/login`) et dashboard (`/`). Tout le reste vit dans le dashboard
+  (sections, modales, panneau latéral).
+- **Fonctions** : vue d'ensemble, projets (création, membres, clôture, archivage), tâches
+  (Kanban glisser-déposer, liste, checklist, commentaires, liens, blocage), « Mes tâches »,
+  clients, statistiques (graphiques dynamiques, stats par membre), équipe (rôles Propriétaire /
+  Collaborateur), recherche globale.
+- **Sécurité** : les permissions sont appliquées en base par la RLS Postgres (voir
+  [docs/architecture.md](docs/architecture.md)), pas seulement dans l'interface.
+
+Stack : Next.js 16 (App Router) · Supabase (Postgres, Auth, RLS) · Tailwind CSS 4 + shadcn/ui ·
+TanStack Query · Zod · dnd-kit · Vitest · Playwright.
+
+## Prérequis
+
+- Node.js 24 et pnpm 10
+- Docker Desktop **démarré** (pour Supabase en local)
+
+## Démarrer en local
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+```bash
+pnpm db:start
+```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`db:start` lance Supabase en local (ports `553xx`), applique les migrations et charge les
+données de démonstration. Créez ensuite `.env.local` à partir de `.env.example` avec les
+valeurs affichées par `pnpm supabase status` (`API_URL`, `ANON_KEY`, `SERVICE_ROLE_KEY`).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm dev
+```
 
-## Learn More
+Ouvrez <http://localhost:3000>. Données de démonstration **fictives** (base locale uniquement) :
 
-To learn more about Next.js, take a look at the following resources:
+- [supabase/seed.sql](supabase/seed.sql) : comptes de base (un propriétaire, un collaborateur) ;
+- [supabase/seed-demo.sql](supabase/seed-demo.sql) : jeu complet couvrant toutes les situations
+  (statuts de projet et de tâche, retards, blocages, checklists, commentaires, liens, temps passé
+  par plusieurs personnes, historique sur 12 semaines) et deux collaborateurs de plus.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Les identifiants sont indiqués en tête de ces fichiers. `pnpm db:reset` recharge les deux ;
+pour ajouter le jeu complet à une base existante sans rien effacer :
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+docker exec -i supabase_db_kelenix psql -U postgres -d postgres < supabase/seed-demo.sql
+```
 
-## Deploy on Vercel
+## Commandes
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Commande | Rôle |
+|----------|------|
+| `pnpm dev` | Serveur de développement |
+| `pnpm build` / `pnpm start` | Build et serveur de production |
+| `pnpm check` | Lint + types + tests unitaires |
+| `pnpm test:db` | Tests des règles RLS (pgTAP) |
+| `pnpm test:e2e` | Parcours complets Playwright (base locale démarrée) |
+| `pnpm db:reset` | Réinitialise la base locale (migrations + démo) |
+| `pnpm db:types` | Régénère les types TypeScript du schéma |
+| `pnpm db:seed-volume` / `pnpm db:unseed-volume` | Ajoute / retire 120 projets de test (« (test NNN) ») pour voir l'affichage à grande échelle |
+| `pnpm create-owner <email> "<Nom>"` | Crée un compte propriétaire (mot de passe provisoire affiché une fois) |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Comptes et équipe
+
+Il n'y a pas d'inscription publique. Le premier propriétaire est créé avec `pnpm create-owner`.
+Il ajoute ensuite les membres depuis **Équipe et paramètres** (e-mail + mot de passe provisoire),
+choisit leur rôle et les projets auxquels ils ont accès. Chacun change son mot de passe dans
+**Mon profil**.
+
+## Mise en ligne
+
+Déploiement automatique sur un VPS (Docker, Supabase auto-hébergé, HTTPS) par GitHub Actions
+à chaque push sur `main` : voir [docs/deployment.md](docs/deployment.md). Les seules actions
+humaines (clé SSH, DNS) sont listées dans [docs/manual-tasks.md](docs/manual-tasks.md).
+
+## Documentation projet
+
+- [docs/PLAN.md](docs/PLAN.md) — plan de réalisation et hypothèses
+- [docs/architecture.md](docs/architecture.md) — architecture, données, permissions
+- [DECISION_LOG.md](DECISION_LOG.md) — décisions techniques
+- [PROJECT_STATE.md](PROJECT_STATE.md) — avancement

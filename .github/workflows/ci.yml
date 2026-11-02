@@ -1,0 +1,162 @@
+# Intégration et déploiement continus.
+# Chaque push sur main : contrôles → tests base + bout en bout → image Docker → déploiement VPS.
+# Le déploiement démarre dès que les variables DOMAIN et VPS_HOST du dépôt sont renseignées.
+name: CI / CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  checks:
+    name: Lint, types, tests unitaires
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm audit --prod
+
+  database-and-e2e:
+    name: Sécurité de la base et parcours complets
+    runs-on: ubuntu-latest
+    needs: checks
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Supabase local (migrations + données de démonstration)
+        run: pnpm supabase start -x imgproxy,studio,edge-runtime,logflare,vector,supavisor,storage-api,realtime
+      - name: Tests de sécurité RLS
+        run: pnpm test:db
+      - name: Variables d'environnement locales
+        run: |
+          pnpm -s supabase status -o env | grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' > supabase.env
+          set -a; . ./supabase.env; set +a
+          {
+            echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } > .env.local
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Tests de bout en bout
+        run: pnpm test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: test-results/
+
+  image:
+    name: Image Docker
+    runs-on: ubuntu-latest
+    needs: [checks, database-and-e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DOMAIN != '' && vars.VPS_HOST != ''
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.name.outputs.image }}
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=https://${{ vars.DOMAIN }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.ANON_KEY }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Déploiement sur le VPS
+    runs-on: ubuntu-latest
+    needs: image
+    permissions:
+      contents: read
+      packages: read
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      SSH_TARGET: ${{ vars.VPS_USER || 'root' }}@${{ vars.VPS_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Accès SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 15 -H "${{ vars.VPS_HOST }}" >> ~/.ssh/known_hosts
+      - name: Copie des fichiers de déploiement
+        run: |
+          ssh "$SSH_TARGET" 'mkdir -p /opt/kelenix/migrations /opt/kelenix/db'
+          scp -q deploy/docker-compose.yml deploy/Caddyfile deploy/deploy.sh deploy/migrate.sh "$SSH_TARGET":/opt/kelenix/
+          scp -q deploy/db/post-init.sql "$SSH_TARGET":/opt/kelenix/db/
+          scp -q supabase/migrations/*.sql "$SSH_TARGET":/opt/kelenix/migrations/
+          ssh "$SSH_TARGET" 'chmod +x /opt/kelenix/deploy.sh /opt/kelenix/migrate.sh'
+      - name: Configuration de production
+        env:
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          ANON_KEY: ${{ secrets.ANON_KEY }}
+          SERVICE_ROLE_KEY: ${{ secrets.SERVICE_ROLE_KEY }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          {
+            echo "DOMAIN=${{ vars.DOMAIN }}"
+            echo "SITE_ADDRESS=${{ vars.DOMAIN }}"
+            echo "PUBLIC_URL=https://${{ vars.DOMAIN }}"
+            echo "APP_IMAGE=${{ needs.image.outputs.image }}"
+            echo "ADMIN_EMAIL=${{ vars.ADMIN_EMAIL }}"
+            echo "ADMIN_NAME='${{ vars.ADMIN_NAME || 'Propriétaire' }}'"
+            echo "ADMIN_PASSWORD=$ADMIN_PASSWORD"
+            echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD"
+            echo "JWT_SECRET=$JWT_SECRET"
+            echo "ANON_KEY=$ANON_KEY"
+            echo "SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
+          } | ssh "$SSH_TARGET" 'umask 077 && cat > /opt/kelenix/.env'
+      - name: Déploiement
+        run: |
+          # Jeton de lecture du registre transmis par l'entrée standard (jamais écrit sur disque).
+          printf '%s\n' "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" | ssh "$SSH_TARGET" 'bash /opt/kelenix/deploy.sh'
+      - name: Vérification
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS -o /dev/null "https://${{ vars.DOMAIN }}/login"; then echo "En ligne : https://${{ vars.DOMAIN }}"; exit 0; fi
+            sleep 15
+          done
+          echo "::error::https://${{ vars.DOMAIN }} ne répond pas (vérifiez l'enregistrement DNS de type A vers ${{ vars.VPS_HOST }})."
+          exit 1

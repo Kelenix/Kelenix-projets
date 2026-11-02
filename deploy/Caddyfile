@@ -1,0 +1,31 @@
+{
+	email {$ACME_EMAIL:admin@example.com}
+}
+
+(routes) {
+	handle_path /auth/v1/* {
+		reverse_proxy auth:9999
+	}
+	handle_path /rest/v1/* {
+		reverse_proxy rest:3000
+	}
+	handle {
+		reverse_proxy app:3000
+	}
+}
+
+# Adresse publique : HTTPS automatique (Let's Encrypt). L'administration des comptes n'est
+# jamais exposée publiquement, même avec une clé valide. « route » garde l'ordre écrit.
+{$SITE_ADDRESS} {
+	encode zstd gzip
+	header -Server
+	route {
+		respond /auth/v1/admin* 404
+		import routes
+	}
+}
+
+# Passerelle interne (réseau Docker uniquement, port non publié) pour les appels serveur.
+http://:8000 {
+	import routes
+}
