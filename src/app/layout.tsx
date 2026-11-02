@@ -14,7 +14,7 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = { themeColor: "#f6f7fb" }
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr" className={`${inter.variable} h-full antialiased`}>
       <body className="min-h-full">
