@@ -65,7 +65,7 @@ export function Search() {
   const expanded = open && query.trim().length > 0
 
   return (
-    <div ref={rootRef} className="relative w-full sm:w-64">
+    <div ref={rootRef} className="relative w-full">
       <SearchIcon aria-hidden className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         type="search"
@@ -89,7 +89,7 @@ export function Search() {
         <ul
           id={listId}
           role="listbox"
-          className="absolute right-0 z-40 mt-2 w-full sm:w-80 overflow-hidden rounded-xl border bg-popover p-1 shadow-lg animate-in fade-in-0 zoom-in-95"
+          className="absolute right-0 z-40 mt-2 w-full min-w-72 overflow-hidden rounded-xl border bg-popover p-1 shadow-lg animate-in fade-in-0 zoom-in-95"
         >
           {results.length === 0 && <li className="px-3 py-6 text-center text-sm text-muted-foreground">Aucun résultat</li>}
           {results.map((result, index) => {

@@ -55,7 +55,7 @@ export function StatisticsSection() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row">
-        <NativeSelect aria-label="Projet" value={projectId} onChange={(e) => setProjectId(e.target.value)} className="sm:w-64">
+        <NativeSelect aria-label="Projet" value={projectId} onChange={(e) => setProjectId(e.target.value)} className="sm:w-80">
           <option value="">Tous les projets actifs</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>

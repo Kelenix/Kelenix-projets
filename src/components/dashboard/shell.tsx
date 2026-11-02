@@ -246,7 +246,7 @@ function Topbar() {
     <header className="sticky top-0 z-20 border-b bg-background/85 backdrop-blur">
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:h-16 sm:flex-nowrap sm:py-0 md:px-8">
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight">{title}</h1>
-        <div className="order-last w-full sm:order-none sm:w-auto">
+        <div className="order-last w-full sm:order-none sm:w-80 lg:w-[28rem] xl:w-[32rem]">
           <Search />
         </div>
         {create && (

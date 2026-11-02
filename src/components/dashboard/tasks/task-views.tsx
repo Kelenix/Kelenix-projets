@@ -67,7 +67,7 @@ export function TaskViews({
           aria-label="Filtrer les tâches"
           value={filter}
           onChange={(e) => setFilter(e.target.value as Filter)}
-          className="w-48"
+          className="w-56"
         >
           <option value="all">Toutes les tâches</option>
           <option value="late">En retard</option>

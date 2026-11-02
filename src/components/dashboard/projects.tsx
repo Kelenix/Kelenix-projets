@@ -62,7 +62,7 @@ function ProjectList() {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <NativeSelect aria-label="Filtrer par statut" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} className="sm:w-44">
+        <NativeSelect aria-label="Filtrer par statut" value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} className="sm:w-52">
           <option value="all">Tous les statuts</option>
           {Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => (
             <option key={value} value={value}>
@@ -71,7 +71,7 @@ function ProjectList() {
           ))}
           <option value="archived">Archivés</option>
         </NativeSelect>
-        <NativeSelect aria-label="Filtrer par client" value={clientId} onChange={(e) => setClientId(e.target.value)} className="sm:w-48">
+        <NativeSelect aria-label="Filtrer par client" value={clientId} onChange={(e) => setClientId(e.target.value)} className="sm:w-60">
           <option value="">Tous les clients</option>
           {clients.map((c) => (
             <option key={c.id} value={c.id}>
