@@ -119,12 +119,12 @@ export function TaskBoard({ tasks, profiles, projectNames, onOpen }: BoardProps)
   )
 }
 
-// Chaque colonne porte la couleur de son statut (la même que dans les statistiques).
+// Colonnes neutres : la couleur du statut est portée par le liseré, la pastille et les cartes.
 const COLUMN_STYLES: Record<TaskStatus, string> = {
-  todo: "border-t-series-todo bg-series-todo/8",
-  in_progress: "border-t-series-progress bg-series-progress/8",
-  rescheduled: "border-t-series-rescheduled bg-series-rescheduled/10",
-  done: "border-t-series-done bg-series-done/8",
+  todo: "border-t-series-todo",
+  in_progress: "border-t-series-progress",
+  rescheduled: "border-t-series-rescheduled",
+  done: "border-t-series-done",
 }
 
 function Column({ status, count, children }: { status: TaskStatus; count: number; children: React.ReactNode }) {
@@ -134,9 +134,9 @@ function Column({ status, count, children }: { status: TaskStatus; count: number
       ref={setNodeRef}
       aria-label={`${TASK_STATUS_LABELS[status]} (${count})`}
       className={cn(
-        "flex w-[82vw] shrink-0 snap-start flex-col rounded-xl border-t-4 p-3 transition-colors sm:w-80 md:w-auto",
+        "flex w-[82vw] shrink-0 snap-start flex-col rounded-xl border-t-4 bg-muted/60 p-3 transition-colors sm:w-80 md:w-auto",
         COLUMN_STYLES[status],
-        isOver && "ring-2 ring-primary/30"
+        isOver && "bg-accent ring-2 ring-primary/30"
       )}
     >
       <h3 className="mb-3 flex items-center gap-2 px-1 text-sm font-semibold">

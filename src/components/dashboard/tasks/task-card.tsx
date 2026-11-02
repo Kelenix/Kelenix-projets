@@ -4,7 +4,7 @@ import { useState } from "react"
 import type { Profile, Task } from "@/lib/domain"
 import { cn } from "@/lib/utils"
 import { ChecklistProgress, InlineChecklist } from "./inline-checklist"
-import { Assignee, BlockedBadge, DueDate, PriorityBadge } from "./task-meta"
+import { Assignee, BlockedBadge, DueDate, PriorityBadge, statusAccent, TaskStatusBadge } from "./task-meta"
 import { TaskTime } from "./task-time"
 
 export function TaskCard({
@@ -26,12 +26,16 @@ export function TaskCard({
   return (
     <div
       className={cn(
-        "group relative rounded-lg border bg-card p-3 shadow-xs transition-shadow hover:shadow-md",
-        task.is_blocked && "border-destructive/40",
+        "group relative rounded-lg border border-l-4 bg-card p-3 shadow-xs transition-[box-shadow,border-color] duration-300 hover:shadow-md",
+        statusAccent(task.status),
+        task.is_blocked && "border-y-destructive/40 border-r-destructive/40",
         className
       )}
     >
-      {projectName && <p className="mb-1 truncate text-xs text-muted-foreground">{projectName}</p>}
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-xs text-muted-foreground">{projectName}</p>
+        <TaskStatusBadge status={task.status} />
+      </div>
       <button
         type="button"
         onClick={onOpen}

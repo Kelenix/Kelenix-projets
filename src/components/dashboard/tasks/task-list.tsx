@@ -7,7 +7,7 @@ import { TASK_STATUS_LABELS, TASK_STATUSES, type Profile, type Task, type TaskSt
 import { useUpdateTask } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { ChecklistProgress, InlineChecklist } from "./inline-checklist"
-import { Assignee, BlockedBadge, DueDate, PriorityBadge } from "./task-meta"
+import { Assignee, BlockedBadge, DueDate, PriorityBadge, statusAccent, TaskStatusBadge } from "./task-meta"
 import { TaskTime } from "./task-time"
 
 export function TaskList({
@@ -29,7 +29,10 @@ export function TaskList({
         {(visible) => (
           <ul className="divide-y overflow-hidden rounded-xl border bg-card">
             {visible.map((task) => (
-              <li key={task.id} className="flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-start sm:gap-4">
+              <li
+                key={task.id}
+                className={cn("flex flex-col gap-2 border-l-4 px-4 py-3 sm:flex-row sm:items-start sm:gap-4", statusAccent(task.status))}
+              >
                 <div className="min-w-0 flex-1">
                   <button
                     type="button"
@@ -46,7 +49,8 @@ export function TaskList({
                   <TaskTime task={task} profiles={profiles} className="mt-2 max-w-md" />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {task.is_blocked && <BlockedBadge />}
+                  <TaskStatusBadge status={task.status} />
+            {task.is_blocked && <BlockedBadge />}
                   <PriorityBadge priority={task.priority} />
                   <DueDate task={task} />
                   <ChecklistProgress
