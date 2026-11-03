@@ -285,11 +285,14 @@ jobs:
     name: "8 · Vérification après déploiement"
     runs-on: ubuntu-latest
     needs: production
+    timeout-minutes: 10
     steps:
       - name: Contrôles de la production
         env:
           URL: https://${{ vars.DOMAIN }}
         run: |
+          # Délai maximal sur chaque requête : une vérification ne doit jamais rester bloquée.
+          curl() { command curl --max-time 20 --connect-timeout 10 "$@"; }
           check() { if eval "$2"; then echo "✓ $1"; else echo "::error::✗ $1"; failed=1; fi; }
           for i in $(seq 1 20); do curl -fsS -o /dev/null "$URL/login" && break; sleep 15; done
           failed=0
