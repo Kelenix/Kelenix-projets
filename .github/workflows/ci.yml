@@ -227,7 +227,13 @@ jobs:
           path: test-results/
       - name: Suppression de la préproduction
         if: always()
-        run: ssh "$SSH_TARGET" 'bash /opt/kelenix/teardown.sh' || true
+        # Plusieurs essais : un serveur saturé peut ne pas répondre du premier coup.
+        run: |
+          for i in 1 2 3 4 5; do
+            ssh -o ConnectTimeout=20 "$SSH_TARGET" 'bash /opt/kelenix/teardown.sh' && exit 0
+            sleep 30
+          done
+          echo "::warning::La préproduction n'a pas pu être supprimée ; elle le sera au prochain déploiement."
 
   # 7 · Déployer en production (la même image, validée en préproduction)
   production:

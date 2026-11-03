@@ -2,12 +2,30 @@
 # application et passerelle. Lancé avec « docker compose -p kelenix-<env> --env-file .env.<env> ».
 # Aucun port public : la passerelle n'écoute que sur 127.0.0.1, le nginx du serveur fait le HTTPS.
 # Versions identiques à la pile locale de la Supabase CLI.
+# Mémoire bornée par service : le serveur est partagé avec d'autres projets (4 Go au total).
 
 services:
   db:
     image: public.ecr.aws/supabase/postgres:17.11.0.006
     restart: unless-stopped
-    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf", "-c", "log_min_messages=fatal"]
+    mem_limit: 256m
+    command:
+      - postgres
+      - -c
+      - config_file=/etc/postgresql/postgresql.conf
+      - -c
+      - log_min_messages=fatal
+      # Réglages sobres, adaptés au faible volume de données.
+      - -c
+      - shared_buffers=48MB
+      - -c
+      - effective_cache_size=128MB
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=16MB
+      - -c
+      - max_connections=40
     environment:
       POSTGRES_HOST: /var/run/postgresql
       POSTGRES_USER: supabase_admin
@@ -28,6 +46,7 @@ services:
   auth:
     image: public.ecr.aws/supabase/gotrue:v2.197.0
     restart: unless-stopped
+    mem_limit: 64m
     depends_on:
       db:
         condition: service_healthy
@@ -61,6 +80,7 @@ services:
   rest:
     image: public.ecr.aws/supabase/postgrest:v16.5
     restart: unless-stopped
+    mem_limit: 96m
     depends_on:
       db:
         condition: service_healthy
@@ -81,6 +101,7 @@ services:
   app:
     image: ${APP_IMAGE:?}
     restart: unless-stopped
+    mem_limit: 256m
     depends_on:
       auth:
         condition: service_healthy
@@ -91,10 +112,12 @@ services:
       SUPABASE_URL: http://gateway:8001
       SUPABASE_ANON_KEY: ${ANON_KEY:?}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY:?}
+      NODE_OPTIONS: --max-old-space-size=192
 
   gateway:
     image: caddy:2.10-alpine
     restart: unless-stopped
+    mem_limit: 64m
     depends_on:
       - app
     ports:
@@ -111,6 +134,7 @@ services:
   backup:
     image: postgres:17-alpine
     restart: unless-stopped
+    mem_limit: 128m
     profiles: ["backup"]
     depends_on:
       db:
