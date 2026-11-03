@@ -1,24 +1,29 @@
 "use client"
 
-import { Ban, ChartColumn, CircleAlert } from "lucide-react"
+import { Ban, ChartColumn, CircleAlert, Lock } from "lucide-react"
 import { useMemo, useState, type ReactNode } from "react"
 import { EmptyState, ErrorState } from "@/components/empty-state"
 import { NativeSelect } from "@/components/native-select"
 import { Skeleton } from "@/components/ui/skeleton"
-import { isOverdue } from "@/lib/domain"
+import { isAssigned, isOverdue } from "@/lib/domain"
 import { useProfiles, useProjects, useTasks } from "@/lib/queries"
 import { memberStats, statusCounts, weeklyCompletions } from "@/lib/stats"
 import { formatDuration, timeSince } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import { StatusBar, StatusLegend, WeeklyBars } from "./charts"
+import { EstimateTable, TeamNow } from "./team-reports"
 import { useDashboard } from "./state"
 import { Timesheet } from "./timesheet"
 
 const PERIODS = [4, 8, 12] as const
 
-/** Graphiques calculés en direct depuis les tâches visibles : toute modification les met à jour. */
+/**
+ * Graphiques calculés en direct depuis les tâches visibles : toute modification les met à jour.
+ * Rapports d'équipe pour les administrateurs, les personnes autorisées et le chef du projet
+ * sélectionné ; sinon, uniquement ses propres chiffres.
+ */
 export function StatisticsSection() {
-  const { viewer } = useDashboard()
+  const { viewer, canViewReports, canManage } = useDashboard()
   const tasksQuery = useTasks()
   const projectsQuery = useProjects()
   const { data: profiles = [] } = useProfiles()
@@ -26,28 +31,40 @@ export function StatisticsSection() {
   const [weeks, setWeeks] = useState<(typeof PERIODS)[number]>(8)
 
   const projects = useMemo(() => (projectsQuery.data ?? []).filter((p) => !p.archived_at), [projectsQuery.data])
+  const teamView = canViewReports || (!!projectId && canManage(projectId))
+  const managesSome = projects.some((p) => p.manager_ids.includes(viewer.id))
 
   const stats = useMemo(() => {
-    const live = new Set(projects.map((p) => p.id))
-    const tasks = (tasksQuery.data ?? []).filter((t) => (projectId ? t.project_id === projectId : live.has(t.project_id)))
+    const scope = projects.filter((p) => !projectId || p.id === projectId)
+    const live = new Set(scope.map((p) => p.id))
+    const visible = (tasksQuery.data ?? []).filter((t) => live.has(t.project_id))
+    // Sans accès aux rapports : ses tâches et son propre temps uniquement.
+    const tasks = teamView
+      ? visible
+      : visible
+          .filter((t) => isAssigned(t, viewer.id) || t.time_entries.some((e) => e.user_id === viewer.id))
+          .map((t) => ({ ...t, time_entries: t.time_entries.filter((e) => e.user_id === viewer.id) }))
+    const memberIds = new Set(scope.flatMap((p) => p.member_ids))
+    const people = profiles.filter((p) => (teamView ? memberIds.has(p.id) : p.id === viewer.id))
     const byWeek = weeklyCompletions(tasks, weeks)
     const since = byWeek[0]!.start
     const counts = statusCounts(tasks)
     return {
       tasks,
+      people,
       byWeek,
       counts,
       completed: byWeek.reduce((sum, w) => sum + w.count, 0),
       open: counts.todo + counts.in_progress,
       overdue: tasks.filter((t) => isOverdue(t)).length,
       rate: tasks.length === 0 ? 0 : Math.round((counts.done / tasks.length) * 100),
-      members: memberStats(tasks, profiles, since),
+      members: memberStats(tasks, people, since),
       time: timeSince(
         tasks.flatMap((t) => t.time_entries),
         since
       ),
     }
-  }, [tasksQuery.data, projects, projectId, weeks, profiles])
+  }, [tasksQuery.data, projects, projectId, weeks, profiles, teamView, viewer.id])
 
   if (tasksQuery.isError || projectsQuery.isError)
     return <ErrorState onRetry={() => (tasksQuery.refetch(), projectsQuery.refetch())} />
@@ -78,6 +95,16 @@ export function StatisticsSection() {
         </NativeSelect>
       </div>
 
+      {!teamView && (
+        <p className="flex items-start gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <span>
+            Vous voyez vos propres chiffres. L&apos;accès aux rapports d&apos;équipe est accordé par un administrateur
+            {managesSome && " ; choisissez un projet dont vous êtes chef pour voir son équipe"}.
+          </span>
+        </p>
+      )}
+
       {stats.tasks.length === 0 ? (
         <EmptyState icon={ChartColumn} title="Pas encore de données" description="Les statistiques apparaissent dès que des tâches existent." />
       ) : (
@@ -102,8 +129,16 @@ export function StatisticsSection() {
             </Card>
           </div>
 
-          <Card title="Feuille de temps de l'équipe">
+          <Card title={teamView ? "L'équipe en ce moment" : "Votre activité en ce moment"}>
+            <TeamNow tasks={stats.tasks} people={stats.people} />
+          </Card>
+
+          <Card title={teamView ? "Feuille de temps de l'équipe" : "Votre feuille de temps"}>
             <Timesheet tasks={stats.tasks} profiles={profiles} />
+          </Card>
+
+          <Card title="Temps estimé et temps réel par collaborateur">
+            <EstimateTable tasks={stats.tasks} people={stats.people} />
           </Card>
 
           <Card title="Statistiques par membre">

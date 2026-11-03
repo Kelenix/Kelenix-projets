@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation"
 import { createContext, useContext, useState, type ReactNode } from "react"
 import type { Client, Profile, Project } from "@/lib/domain"
+import { useProfiles, useProjects } from "@/lib/queries"
 
 export type Section = "overview" | "projects" | "tasks" | "clients" | "stats"
 const SECTIONS: Section[] = ["overview", "projects", "tasks", "clients", "stats"]
@@ -19,7 +20,12 @@ type Navigation = { section: Section; projectId: string | null; taskId: string |
 
 type DashboardContext = Navigation & {
   viewer: Profile
+  /** Administrateur : tous les droits. */
   isOwner: boolean
+  /** Administrateur ou chef du projet : modifie le projet, gère ses collaborateurs, voit les pauses. */
+  canManage: (projectId: string) => boolean
+  /** Accès aux rapports d'équipe (sinon, statistiques limitées à ses propres chiffres). */
+  canViewReports: boolean
   navigate: (next: Partial<Navigation>) => void
   dialog: DialogState
   openDialog: (dialog: DialogState) => void
@@ -34,6 +40,12 @@ const Context = createContext<DashboardContext | null>(null)
 export function DashboardProvider({ viewer, children }: { viewer: Profile; children: ReactNode }) {
   const params = useSearchParams()
   const [dialog, openDialog] = useState<DialogState>(null)
+  const { data: projects } = useProjects()
+  const { data: profiles } = useProfiles()
+  // Profil à jour (un accès accordé pendant la session s'applique sans recharger la page).
+  const me = profiles?.find((p) => p.id === viewer.id) ?? viewer
+  const isOwner = me.role === "owner"
+  const canManage = (id: string) => isOwner || !!projects?.find((p) => p.id === id)?.manager_ids.includes(viewer.id)
 
   const section = SECTIONS.find((s) => s === params.get("s")) ?? "overview"
   const projectId = section === "projects" ? params.get("p") : null
@@ -55,7 +67,18 @@ export function DashboardProvider({ viewer, children }: { viewer: Profile; child
 
   return (
     <Context
-      value={{ viewer, isOwner: viewer.role === "owner", section, projectId, taskId, navigate, dialog, openDialog }}
+      value={{
+        viewer: me,
+        isOwner,
+        canManage,
+        canViewReports: isOwner || me.can_view_reports,
+        section,
+        projectId,
+        taskId,
+        navigate,
+        dialog,
+        openDialog,
+      }}
     >
       {children}
     </Context>

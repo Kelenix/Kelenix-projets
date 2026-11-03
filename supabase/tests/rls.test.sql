@@ -1,6 +1,6 @@
 -- Tests RLS (pgTAP) : `pnpm test:db`. S'appuie sur les comptes de démo de seed.sql.
 begin;
-select plan(41);
+select plan(56);
 
 create temp table projects_all_for_test on commit drop as select id from public.projects;
 grant select on projects_all_for_test to authenticated;
@@ -166,6 +166,73 @@ select is(
   'date de fin : non falsifiable depuis le navigateur'
 );
 
+-- Chef de projet : demo.lead, chef du projet a0…01 (rôle « manager » sur ce seul projet).
+select set_config('request.jwt.claims', '{"sub":"55555555-5555-5555-5555-555555555555","role":"authenticated"}', true);
+select public.start_timer((select id from own_task_for_test));
+select public.pause_timer('rest');
+select public.stop_timer();
+select ok(
+  (select count(*) from public.time_entries where user_id = '22222222-2222-2222-2222-222222222222' and kind = 'pause') > 0,
+  'chef de projet : voit les pauses de son équipe'
+);
+select isnt_empty(
+  $$update public.projects set description = 'Piloté par le chef de projet' where id = 'a0000000-0000-0000-0000-000000000001' returning id$$,
+  'chef de projet : modifie son projet'
+);
+select is_empty(
+  $$update public.projects set description = 'x' where id = 'a0000000-0000-0000-0000-000000000002' returning id$$,
+  'chef de projet : ne modifie pas un autre projet'
+);
+select throws_ok(
+  $$insert into public.project_members (project_id, user_id, role)
+    values ('a0000000-0000-0000-0000-000000000001', '44444444-4444-4444-4444-444444444444', 'manager')$$,
+  '42501', null, 'chef de projet : ne nomme pas un autre chef'
+);
+select lives_ok(
+  $$insert into public.project_members (project_id, user_id)
+    values ('a0000000-0000-0000-0000-000000000001', '44444444-4444-4444-4444-444444444444')$$,
+  'chef de projet : ajoute un collaborateur à son projet'
+);
+select is_empty(
+  $$update public.project_members set role = 'manager'
+    where project_id = 'a0000000-0000-0000-0000-000000000001' and user_id = '44444444-4444-4444-4444-444444444444' returning user_id$$,
+  'chef de projet : ne promeut personne'
+);
+select lives_ok(
+  $$select public.set_pause_reason((select id from public.time_entries
+    where user_id = '22222222-2222-2222-2222-222222222222' and kind = 'pause' limit 1), 'rest')$$,
+  'chef de projet : corrige le motif d''une pause de son équipe'
+);
+select throws_ok(
+  $$update public.profiles set can_view_reports = true where id = auth.uid()$$,
+  'P0001', null, 'chef de projet : ne s''accorde pas l''accès aux rapports'
+);
+select lives_ok(
+  $$insert into public.task_assignees (task_id, user_id, estimated_minutes)
+    values ((select id from own_task_for_test), '44444444-4444-4444-4444-444444444444', 90)$$,
+  'affectation multiple : un second collaborateur sur la même tâche, avec son temps estimé'
+);
+select throws_ok(
+  $$insert into public.task_assignees (task_id, user_id)
+    values ((select id from own_task_for_test), '33333333-3333-3333-3333-333333333333')$$,
+  'P0001', null, 'affectation multiple : uniquement des membres du projet'
+);
+
+-- Retour au collaborateur : les pauses des autres restent privées.
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+select is_empty(
+  $$select id from public.time_entries where user_id = '55555555-5555-5555-5555-555555555555' and kind = 'pause'$$,
+  'collaborateur : ne voit pas les pauses des autres'
+);
+select isnt_empty(
+  $$select id from public.time_entries where user_id = '55555555-5555-5555-5555-555555555555' and kind = 'work'$$,
+  'collaborateur : voit le temps de travail de l''équipe'
+);
+select throws_ok(
+  $$update public.profiles set can_view_reports = true where id = auth.uid()$$,
+  'P0001', null, 'collaborateur : ne s''accorde pas l''accès aux rapports'
+);
+
 -- Propriétaire : voit et gère tout.
 select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
 select is(
@@ -180,6 +247,16 @@ select throws_ok(
   $$insert into public.tasks (project_id, title, assignee_id)
     values ('a0000000-0000-0000-0000-000000000002', 'Assignation invalide', '22222222-2222-2222-2222-222222222222')$$,
   'P0001', null, 'le responsable doit être membre du projet'
+);
+select isnt_empty(
+  $$update public.profiles set can_view_reports = true where id = '22222222-2222-2222-2222-222222222222' returning id$$,
+  'administrateur : accorde l''accès aux rapports'
+);
+delete from public.task_assignees
+where user_id = '22222222-2222-2222-2222-222222222222' and task_id = (select id from public.tasks where title = 'Intégration du paiement');
+select is(
+  (select assignee_id from public.tasks where title = 'Intégration du paiement'), null,
+  'désaffecter le responsable principal libère la responsabilité'
 );
 select throws_ok(
   $$insert into public.tasks (project_id, title, is_blocked) values ('a0000000-0000-0000-0000-000000000001', 'Bloquée', true)$$,

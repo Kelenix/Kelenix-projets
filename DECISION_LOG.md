@@ -5,6 +5,23 @@
 
 ---
 
+## ADR-018 — Rôles administrateur / chef de projet / collaborateur, affectation multiple, rapports
+
+- **Date** : 2026-11-03
+- **Statut** : Accepté
+- **Décideur** : Claude (rôle : solution-architect + security)
+- **Contexte** : Demande « Gestion des collaborateurs » (21–30) : plusieurs collaborateurs par tâche, estimé vs réel, tâches en cours par personne, trois rôles, autorisations sur les projets et les rapports, pauses visibles selon les permissions.
+- **Décision** :
+  - « Administrateur » = l'ancien rôle global `owner` (valeur conservée en base, libellé changé) ; « Chef de projet » = rôle **par projet** (`project_members.role = 'manager'`), nommé uniquement par un administrateur. Le chef modifie son projet, ajoute/retire des collaborateurs (pas d'autres chefs), corrige les sessions et voit les pauses de son équipe.
+  - Table `task_assignees` (plusieurs collaborateurs par tâche, `estimated_minutes` par personne) ; `tasks.assignee_id` reste le responsable principal, toujours synchronisé dans `task_assignees` par trigger.
+  - Pauses : la RLS de `time_entries` ne laisse voir une pause qu'à son auteur, aux chefs du projet et aux administrateurs ; le journal des corrections suit la même visibilité.
+  - Rapports : `profiles.can_view_reports` accordé par un administrateur (jamais à soi-même, garanti par trigger). Sans cet accès, la page Statistiques n'agrège que ses propres chiffres, sauf sur un projet dont on est chef.
+- **Alternatives écartées** : rôle global « chef de projet » (trop large : donnerait la main sur tous les projets) ; remplacer `assignee_id` par la seule table d'affectations (aurait cassé le Kanban, les filtres et les données existantes).
+- **Conséquences** : le temps de **travail** d'un projet reste visible de ses membres (collaboration, chips sur les cartes) ; la restriction des rapports porte sur l'agrégation d'équipe dans Statistiques, la restriction des pauses est garantie en base.
+- **Impact** : fonctionnel + sécurité
+
+---
+
 ## ADR-017 — Motifs de pause et détection des pauses anormalement longues
 
 - **Date** : 2026-11-03

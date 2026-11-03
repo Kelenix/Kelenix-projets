@@ -6,7 +6,7 @@ import { useConfirm } from "@/components/confirm"
 import { EmptyState } from "@/components/empty-state"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { formatDate, type Project, type Task } from "@/lib/domain"
+import { formatDate, PROJECT_ROLE_LABELS, type Project, type Task } from "@/lib/domain"
 import { useClients, useProfiles, useProjects, useTasks, useUpdateProject } from "@/lib/queries"
 import { ProjectProgress } from "./project-progress"
 import { useDashboard } from "./state"
@@ -38,7 +38,7 @@ export function useConfirmClosure() {
 }
 
 export function ProjectWorkspace({ projectId }: { projectId: string }) {
-  const { navigate, isOwner, openDialog } = useDashboard()
+  const { navigate, canManage, openDialog } = useDashboard()
   const { data: projects, isPending } = useProjects()
   const { data: allTasks = [] } = useTasks()
   const { data: profiles = [] } = useProfiles()
@@ -95,7 +95,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
             </dl>
             {project.description && <p className="max-w-prose text-sm whitespace-pre-wrap text-muted-foreground">{project.description}</p>}
           </div>
-          {isOwner && (
+          {canManage(project.id) && (
             <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={() => openDialog({ type: "project", project })}>
                 <Pencil aria-hidden /> Modifier
@@ -133,6 +133,9 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
                 <li key={m.id} className="flex items-center gap-2 rounded-full border bg-background py-0.5 pr-3 pl-0.5 text-sm">
                   <Assignee profile={m} />
                   {m.full_name}
+                  {project.manager_ids.includes(m.id) && (
+                    <span className="text-xs font-medium text-primary">· {PROJECT_ROLE_LABELS.manager}</span>
+                  )}
                 </li>
               ))}
             </ul>

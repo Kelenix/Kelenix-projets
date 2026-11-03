@@ -1,6 +1,6 @@
 "use client"
 
-import { Ban, ExternalLink, Link2, ListChecks, Loader2, MessageSquare, Timer, Trash2, X } from "lucide-react"
+import { Ban, ExternalLink, Link2, ListChecks, Loader2, MessageSquare, Timer, Trash2, Users, X } from "lucide-react"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 import { useConfirm } from "@/components/confirm"
@@ -31,14 +31,17 @@ import {
   useDeleteTaskItem,
   useProfiles,
   useProjects,
+  useSetAssigned,
+  useSetEstimate,
   useTaskDetails,
   useTasks,
   useToggleChecklistItem,
   useUpdateTask,
 } from "@/lib/queries"
 import { linkSchema } from "@/lib/schemas"
+import { formatDuration, totals } from "@/lib/time"
 import { useDashboard } from "../state"
-import { BlockedBadge } from "./task-meta"
+import { BlockedBadge, Gap } from "./task-meta"
 import { TaskTimeDetails } from "../time-sessions"
 import { TaskTime } from "./task-time"
 
@@ -171,6 +174,8 @@ function TaskDetails({ task }: { task: Task }) {
           />
         </Field>
 
+        <Assignees task={task} members={members} />
+
         <section aria-label="Temps passé">
           <SectionTitle icon={Timer}>Temps passé</SectionTitle>
           <TaskTime task={task} profiles={new Map(profiles.map((p) => [p.id, p]))} />
@@ -187,6 +192,123 @@ function TaskDetails({ task }: { task: Task }) {
         </Button>
       </div>
     </>
+  )
+}
+
+/** Heures saisies (« 1,5 » ou « 1.5 ») → minutes ; `null` si vide, `undefined` si invalide. */
+function parseHours(value: string) {
+  if (!value.trim()) return null
+  const hours = Number(value.replace(",", "."))
+  return Number.isFinite(hours) && hours >= 0 && hours <= 1600 ? Math.round(hours * 60) : undefined
+}
+
+/**
+ * Collaborateurs affectés à la tâche (le responsable en fait partie), avec pour chacun son temps
+ * estimé, son temps de travail réel sur la tâche et l'écart.
+ */
+function Assignees({ task, members }: { task: Task; members: Profile[] }) {
+  const setAssigned = useSetAssigned()
+  const setEstimate = useSetEstimate()
+  const names = new Map(members.map((m) => [m.id, m.full_name]))
+  const free = members.filter((m) => !task.assignees.some((a) => a.user_id === m.id))
+  const rows = task.assignees.map((a) => ({
+    ...a,
+    actual: totals(task.time_entries.filter((e) => e.user_id === a.user_id)).work,
+  }))
+  const estimated = rows.reduce((sum, r) => sum + (r.estimated_minutes ?? 0) * 60_000, 0)
+
+  function saveEstimate(userId: string, current: number | null, value: string) {
+    const minutes = parseHours(value)
+    if (minutes === undefined) return void toast.error("Indiquez un nombre d'heures valide (ex. 1,5).")
+    if (minutes !== current) setEstimate.mutate({ taskId: task.id, userId, minutes })
+  }
+
+  return (
+    <section aria-label="Collaborateurs affectés">
+      <SectionTitle icon={Users}>Collaborateurs affectés ({rows.length})</SectionTitle>
+      {rows.length > 0 && (
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-sm">
+            <caption className="sr-only">Temps estimé et temps réel par collaborateur</caption>
+            <thead>
+              <tr className="border-b text-left text-xs text-muted-foreground">
+                <th scope="col" className="px-3 py-2 font-medium">Collaborateur</th>
+                <th scope="col" className="px-2 py-2 font-medium">Estimé (h)</th>
+                <th scope="col" className="px-2 py-2 text-right font-medium">Réel</th>
+                <th scope="col" className="px-2 py-2 text-right font-medium">Écart</th>
+                <th scope="col" className="w-8">
+                  <span className="sr-only">Retirer</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {rows.map((r) => {
+                const name = names.get(r.user_id) ?? "Ancien membre"
+                return (
+                  <tr key={r.user_id}>
+                    <th scope="row" className="px-3 py-1.5 text-left font-medium">
+                      {name}
+                      {r.user_id === task.assignee_id && <span className="font-normal text-muted-foreground"> · responsable</span>}
+                    </th>
+                    <td className="px-2 py-1.5">
+                      <Input
+                        key={r.estimated_minutes ?? "none"}
+                        aria-label={`Temps estimé de ${name} (heures)`}
+                        inputMode="decimal"
+                        placeholder="—"
+                        defaultValue={r.estimated_minutes === null ? "" : String(r.estimated_minutes / 60).replace(".", ",")}
+                        onBlur={(e) => saveEstimate(r.user_id, r.estimated_minutes, e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                        className="h-8 w-20"
+                      />
+                    </td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">{r.actual > 0 ? formatDuration(r.actual) : "—"}</td>
+                    <td className="px-2 py-1.5 text-right tabular-nums">
+                      <Gap estimated={r.estimated_minutes === null ? null : r.estimated_minutes * 60_000} actual={r.actual} />
+                    </td>
+                    <td className="pr-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Désaffecter ${name}`}
+                        onClick={() => setAssigned.mutate({ taskId: task.id, userId: r.user_id, assigned: false })}
+                      >
+                        <X />
+                      </Button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            {rows.length > 1 && (
+              <tfoot>
+                <tr className="border-t bg-muted/40 text-xs font-medium">
+                  <th scope="row" className="px-3 py-2 text-left">Équipe</th>
+                  <td className="px-2 py-2 tabular-nums">{estimated > 0 ? formatDuration(estimated) : "—"}</td>
+                  <td className="px-2 py-2 text-right tabular-nums">{formatDuration(rows.reduce((sum, r) => sum + r.actual, 0))}</td>
+                  <td colSpan={2} />
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      )}
+      {free.length > 0 && (
+        <NativeSelect
+          aria-label="Affecter un collaborateur"
+          value=""
+          onChange={(e) => e.target.value && setAssigned.mutate({ taskId: task.id, userId: e.target.value, assigned: true })}
+          className="mt-2 w-full sm:w-64"
+        >
+          <option value="">+ Affecter un collaborateur…</option>
+          {free.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.full_name}
+            </option>
+          ))}
+        </NativeSelect>
+      )}
+    </section>
   )
 }
 
@@ -357,7 +479,10 @@ function Links({ taskId }: { taskId: string }) {
 }
 
 function Comments({ taskId, profiles }: { taskId: string; profiles: Profile[] }) {
-  const { viewer, isOwner } = useDashboard()
+  const { viewer, canManage } = useDashboard()
+  const { data: tasks } = useTasks()
+  const projectId = tasks?.find((t) => t.id === taskId)?.project_id
+  const isManager = !!projectId && canManage(projectId)
   const { data, isPending } = useTaskDetails(taskId)
   const add = useAddTaskItem("task_comments", taskId)
   const remove = useDeleteTaskItem("task_comments", taskId)
@@ -382,7 +507,7 @@ function Comments({ taskId, profiles }: { taskId: string; profiles: Profile[] })
                 <time dateTime={comment.created_at}>
                   {new Date(comment.created_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}
                 </time>
-                {(comment.author_id === viewer.id || isOwner) && (
+                {(comment.author_id === viewer.id || isManager) && (
                   <Button
                     variant="ghost"
                     size="icon-xs"

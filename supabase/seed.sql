@@ -2,6 +2,7 @@
 -- Ne jamais appliquer en production. Comptes de démo :
 --   propriétaire   : demo.owner@kelenix.test  / KelenixDemo2026!
 --   collaborateur  : demo.collab@kelenix.test / KelenixDemo2026!
+--   chef de projet : demo.lead@kelenix.test   / KelenixDemo2026! (chef du projet « Site e-commerce »)
 
 insert into auth.users (
   instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
@@ -13,14 +14,17 @@ insert into auth.users (
    '{"provider":"email","providers":["email"],"role":"owner"}', '{"full_name":"Alex Martin (démo)"}', now(), now(), '', '', '', ''),
   ('00000000-0000-0000-0000-000000000000', '22222222-2222-2222-2222-222222222222', 'authenticated', 'authenticated',
    'demo.collab@kelenix.test', extensions.crypt('KelenixDemo2026!', extensions.gen_salt('bf')), now(),
-   '{"provider":"email","providers":["email"],"role":"collaborator"}', '{"full_name":"Sam Leroy (démo)"}', now(), now(), '', '', '', '');
+   '{"provider":"email","providers":["email"],"role":"collaborator"}', '{"full_name":"Sam Leroy (démo)"}', now(), now(), '', '', '', ''),
+  ('00000000-0000-0000-0000-000000000000', '55555555-5555-5555-5555-555555555555', 'authenticated', 'authenticated',
+   'demo.lead@kelenix.test', extensions.crypt('KelenixDemo2026!', extensions.gen_salt('bf')), now(),
+   '{"provider":"email","providers":["email"],"role":"collaborator"}', '{"full_name":"Nora Diallo (démo)"}', now(), now(), '', '', '', '');
 
 insert into auth.identities (id, user_id, provider_id, identity_data, provider, created_at, updated_at, last_sign_in_at)
 select gen_random_uuid(), id, id::text,
        jsonb_build_object('sub', id::text, 'email', email, 'email_verified', true),
        'email', now(), now(), now()
 from auth.users
-where id in ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222');
+where id in ('11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222222', '55555555-5555-5555-5555-555555555555');
 
 insert into public.clients (id, name, company, email, notes) values
   ('c0000000-0000-0000-0000-000000000001', 'Julie Bernard (démo)', 'Atelier Fictif', 'julie@exemple.test', 'Client de démonstration.'),
@@ -32,10 +36,11 @@ insert into public.projects (id, name, description, client_id, due_date, status)
   ('a0000000-0000-0000-0000-000000000002', 'Application mobile (démo)', null,
    'c0000000-0000-0000-0000-000000000002', current_date + 60, 'planned');
 
-insert into public.project_members (project_id, user_id) values
-  ('a0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111'),
-  ('a0000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222'),
-  ('a0000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111');
+insert into public.project_members (project_id, user_id, role) values
+  ('a0000000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'member'),
+  ('a0000000-0000-0000-0000-000000000001', '22222222-2222-2222-2222-222222222222', 'member'),
+  ('a0000000-0000-0000-0000-000000000001', '55555555-5555-5555-5555-555555555555', 'manager'),
+  ('a0000000-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'member');
 
 insert into public.tasks (project_id, title, status, priority, assignee_id, due_date, is_blocked, blocked_reason, created_by, completed_at) values
   ('a0000000-0000-0000-0000-000000000001', 'Maquettes des pages produit', 'done', 'normal', '11111111-1111-1111-1111-111111111111', current_date - 5, false, null, '11111111-1111-1111-1111-111111111111', now() - interval '12 days'),
@@ -50,3 +55,11 @@ from public.tasks,
        as item (label, done)
 where title = 'Intégration du paiement';
 
+
+-- Plusieurs collaborateurs sur la même tâche, avec leur temps estimé.
+insert into public.task_assignees (task_id, user_id, estimated_minutes)
+select id, u.user_id, u.minutes
+from public.tasks,
+     (values ('22222222-2222-2222-2222-222222222222'::uuid, 480), ('55555555-5555-5555-5555-555555555555'::uuid, 120)) as u (user_id, minutes)
+where title = 'Intégration du paiement'
+on conflict (task_id, user_id) do update set estimated_minutes = excluded.estimated_minutes;

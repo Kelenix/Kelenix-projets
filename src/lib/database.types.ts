@@ -9,7 +9,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      graphql: { Args: { extensions?: Json; operationName?: string; query?: string; variables?: Json }; Returns: Json }
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
@@ -53,6 +61,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          can_view_reports: boolean
           created_at: string
           email: string
           full_name: string
@@ -61,6 +70,7 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          can_view_reports?: boolean
           created_at?: string
           email: string
           full_name: string
@@ -68,6 +78,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
         }
         Update: {
+          can_view_reports?: boolean
           created_at?: string
           email?: string
           full_name?: string
@@ -80,17 +91,20 @@ export type Database = {
         Row: {
           created_at: string
           project_id: string
+          role: string
           user_id: string
         }
         ComputedFields: never
         Insert: {
           created_at?: string
           project_id: string
+          role?: string
           user_id: string
         }
         Update: {
           created_at?: string
           project_id?: string
+          role?: string
           user_id?: string
         }
         Relationships: [
@@ -151,6 +165,43 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_assignees: {
+        Row: {
+          created_at: string
+          estimated_minutes: number | null
+          task_id: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          estimated_minutes?: number | null
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          estimated_minutes?: number | null
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_assignees_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_assignees_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -459,23 +510,46 @@ export type Database = {
     Functions: {
       can_access_project: { Args: { p_project_id: string }; Returns: boolean }
       can_access_task: { Args: { p_task_id: string }; Returns: boolean }
+      can_manage_project: { Args: { p_project_id: string }; Returns: boolean }
+      can_manage_task: { Args: { p_task_id: string }; Returns: boolean }
       check_time_range: {
-        Args: { p_ended_at: string; p_ignore: string; p_started_at: string; p_user: string }
+        Args: {
+          p_ended_at: string
+          p_ignore: string
+          p_started_at: string
+          p_user: string
+        }
         Returns: undefined
       }
       edit_time_entry: {
-        Args: { p_ended_at: string; p_id: string; p_reason: string; p_started_at: string }
+        Args: {
+          p_ended_at: string
+          p_id: string
+          p_reason: string
+          p_started_at: string
+        }
         Returns: undefined
       }
       is_owner: { Args: Record<PropertyKey, never>; Returns: boolean }
       log_time: {
-        Args: { p_description: string; p_ended_at: string; p_started_at: string; p_task_id: string }
+        Args: {
+          p_description: string
+          p_ended_at: string
+          p_started_at: string
+          p_task_id: string
+        }
         Returns: string
       }
       pause_timer: { Args: { p_reason?: string }; Returns: undefined }
       resume_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
-      set_pause_reason: { Args: { p_id: string; p_reason: string }; Returns: undefined }
-      set_time_entry_description: { Args: { p_description: string; p_id: string }; Returns: undefined }
+      set_pause_reason: {
+        Args: { p_id: string; p_reason: string }
+        Returns: undefined
+      }
+      set_time_entry_description: {
+        Args: { p_description: string; p_id: string }
+        Returns: undefined
+      }
       start_timer: { Args: { p_task_id: string }; Returns: undefined }
       stop_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
     }
@@ -504,7 +578,9 @@ export type Tables<
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
     : never) = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
       DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
       Row: infer R
@@ -526,7 +602,9 @@ export type TablesInsert<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never) = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Insert: infer I
     }
@@ -547,7 +625,9 @@ export type TablesUpdate<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
     : never) = never,
-> = DefaultSchemaTableNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
       Update: infer U
     }
@@ -568,7 +648,9 @@ export type Enums<
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
     : never) = never,
-> = DefaultSchemaEnumNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
@@ -582,7 +664,9 @@ export type CompositeTypes<
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
     : never) = never,
-> = PublicCompositeTypeNameOrOptions extends { schema: keyof DatabaseWithoutInternals }
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
   ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
   : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
     ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]

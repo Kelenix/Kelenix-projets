@@ -5,7 +5,7 @@ import { useMemo } from "react"
 import { EmptyState, ErrorState } from "@/components/empty-state"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { compareByDueDate, isOverdue, type Task } from "@/lib/domain"
+import { compareByDueDate, isAssigned, isOverdue, type Task } from "@/lib/domain"
 import { useProjects, useTasks } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { ProjectProgress } from "./project-progress"
@@ -34,7 +34,7 @@ export function OverviewSection() {
       tasksByProject: Map.groupBy(tasks, (t) => t.project_id),
       inProgress: tasks.filter((t) => t.status === "in_progress").length,
       late: tasks.filter((t) => isOverdue(t)).length,
-      myNext: tasks.filter((t) => t.assignee_id === viewer.id && t.status !== "done").sort(compareByDueDate).slice(0, 8),
+      myNext: tasks.filter((t) => isAssigned(t, viewer.id) && t.status !== "done").sort(compareByDueDate).slice(0, 8),
       names: new Map(projects.map((p) => [p.id, p.name])),
     }
   }, [projectsQuery.data, tasksQuery.data, viewer.id])

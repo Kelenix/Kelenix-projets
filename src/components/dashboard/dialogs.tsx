@@ -6,16 +6,18 @@ import { useConfirm } from "@/components/confirm"
 import { Field } from "@/components/field"
 import { NativeSelect } from "@/components/native-select"
 import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  PROJECT_ROLE_LABELS,
   PROJECT_STATUS_LABELS,
+  ROLE_LABELS,
   TASK_PRIORITIES,
   TASK_PRIORITY_LABELS,
   type Client,
   type Project,
+  type ProjectRole,
 } from "@/lib/domain"
 import {
   useClients,
@@ -84,23 +86,28 @@ function SubmitBar({ pending, label, extra, onCancel }: { pending: boolean; labe
 }
 
 function ProjectForm({ project, onDone }: { project?: Project; onDone: () => void }) {
-  const { viewer } = useDashboard()
+  const { viewer, isOwner } = useDashboard()
   const { data: clients = [] } = useClients()
   const { data: profiles = [] } = useProfiles()
   const { data: tasks = [] } = useTasks()
   const saveProject = useSaveProject()
   const confirmClosure = useConfirmClosure()
-  const [memberIds, setMemberIds] = useState<string[]>(project?.member_ids ?? [viewer.id])
+  const [access, setAccess] = useState<Record<string, ProjectRole>>(() =>
+    project
+      ? Object.fromEntries(project.member_ids.map((id) => [id, project.manager_ids.includes(id) ? "manager" : "member"]))
+      : { [viewer.id]: "member" }
+  )
   const [errors, setErrors] = useState<Record<string, string>>({})
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    const parsed = projectSchema.safeParse({ ...Object.fromEntries(new FormData(e.currentTarget)), member_ids: memberIds })
+    const parsed = projectSchema.safeParse({ ...Object.fromEntries(new FormData(e.currentTarget)), member_ids: Object.keys(access) })
     if (!parsed.success) return setErrors(fieldErrors(parsed.error))
     setErrors({})
     const { member_ids, ...values } = parsed.data
     if (project && values.status === "done" && project.status !== "done" && !(await confirmClosure(project, tasks))) return
-    saveProject.mutate({ id: project?.id, values, memberIds: member_ids }, { onSuccess: onDone })
+    const members = Object.fromEntries(member_ids.map((id) => [id, access[id]!]))
+    saveProject.mutate({ id: project?.id, values, members }, { onSuccess: onDone })
   }
 
   return (
@@ -137,23 +144,43 @@ function ProjectForm({ project, onDone }: { project?: Project; onDone: () => voi
       </div>
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Membres autorisés</legend>
-        <p className="text-xs text-muted-foreground">Seuls les membres voient le projet et peuvent recevoir ses tâches.</p>
-        <ul className="max-h-40 space-y-1 overflow-y-auto rounded-lg border p-2">
-          {profiles.map((p) => (
-            <li key={p.id} className="flex items-center gap-2 px-1 py-1">
-              <Checkbox
-                id={`member-${p.id}`}
-                checked={memberIds.includes(p.id)}
-                onCheckedChange={(checked) =>
-                  setMemberIds((ids) => (checked === true ? [...ids, p.id] : ids.filter((id) => id !== p.id)))
-                }
-              />
-              <label htmlFor={`member-${p.id}`} className="text-sm">
-                {p.full_name}
-                {p.id === viewer.id && <span className="text-muted-foreground"> (vous)</span>}
-              </label>
-            </li>
-          ))}
+        <p className="text-xs text-muted-foreground">
+          Seuls les membres voient le projet et peuvent recevoir ses tâches. Le chef de projet le modifie, gère ses
+          collaborateurs et voit les pauses de l&apos;équipe.
+        </p>
+        <ul className="max-h-56 space-y-1 overflow-y-auto rounded-lg border p-2">
+          {profiles.map((p) => {
+            const role = access[p.id] ?? ""
+            // Un chef de projet ne nomme ni ne retire un autre chef, ni un administrateur.
+            const locked = !isOwner && (p.role === "owner" || project?.manager_ids.includes(p.id))
+            return (
+              <li key={p.id} className="flex items-center gap-2 px-1 py-1">
+                <span className="min-w-0 flex-1 truncate text-sm">
+                  {p.full_name}
+                  {p.id === viewer.id && <span className="text-muted-foreground"> (vous)</span>}
+                  {p.role === "owner" && <span className="text-xs text-muted-foreground"> · {ROLE_LABELS.owner}</span>}
+                </span>
+                <NativeSelect
+                  aria-label={`Accès de ${p.full_name}`}
+                  value={role}
+                  disabled={locked}
+                  onChange={(e) =>
+                    setAccess((current) => {
+                      const next = { ...current }
+                      if (e.target.value) next[p.id] = e.target.value as ProjectRole
+                      else delete next[p.id]
+                      return next
+                    })
+                  }
+                  className="w-40"
+                >
+                  <option value="">Aucun accès</option>
+                  <option value="member">{PROJECT_ROLE_LABELS.member}</option>
+                  {(isOwner || role === "manager") && <option value="manager">{PROJECT_ROLE_LABELS.manager}</option>}
+                </NativeSelect>
+              </li>
+            )
+          })}
         </ul>
       </fieldset>
       <SubmitBar pending={saveProject.isPending} label={project ? "Enregistrer" : "Créer le projet"} onCancel={onDone} />

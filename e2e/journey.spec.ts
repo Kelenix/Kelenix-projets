@@ -50,7 +50,7 @@ test("parcours complet du propriétaire", async ({ page }) => {
   await projectDialog.getByLabel("Statut").selectOption("in_progress")
   // Échéance dépassée d'un an : le projet figure en tête de la vue d'ensemble (triée par échéance).
   await projectDialog.getByLabel("Échéance (facultatif)").fill(new Date(Date.now() - 365 * 86_400_000).toISOString().slice(0, 10))
-  await projectDialog.getByLabel("Sam Leroy (démo)").check()
+  await projectDialog.getByLabel("Accès de Sam Leroy (démo)").selectOption("member")
   await projectDialog.getByRole("button", { name: "Créer le projet" }).click()
   await page.getByRole("button", { name: new RegExp(projectName) }).click()
   await expect(page.getByRole("heading", { level: 2, name: projectName })).toBeVisible()

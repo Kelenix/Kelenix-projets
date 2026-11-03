@@ -7,7 +7,7 @@ import { TASK_STATUS_LABELS, TASK_STATUSES, type Profile, type Task, type TaskSt
 import { useUpdateTask } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { ChecklistProgress, InlineChecklist } from "./inline-checklist"
-import { Assignee, BlockedBadge, DueDate, PriorityBadge, statusAccent, TaskStatusBadge } from "./task-meta"
+import { AssigneeStack, BlockedBadge, DueDate, PriorityBadge, statusAccent, TaskStatusBadge } from "./task-meta"
 import { TaskTime } from "./task-time"
 
 export function TaskList({
@@ -58,7 +58,7 @@ export function TaskList({
                     expanded={openChecklist === task.id}
                     onToggle={() => setOpenChecklist((id) => (id === task.id ? null : task.id))}
                   />
-                  <Assignee profile={task.assignee_id ? profiles.get(task.assignee_id) : undefined} />
+                  <AssigneeStack task={task} profiles={profiles} />
                   <NativeSelect
                     aria-label={`Statut de « ${task.title} »`}
                     value={task.status}

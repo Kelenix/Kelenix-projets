@@ -14,10 +14,10 @@ test("équipe : ajout d'un collaborateur, accès à un projet, puis retrait", as
   await dialog.getByRole("button", { name: "Ajouter le membre" }).click()
   await expect(dialog.getByText(member.email)).toBeVisible()
 
-  await dialog.getByRole("tab", { name: "Accès aux projets" }).click()
-  const access = dialog.getByRole("group", { name: member.name })
-  await access.getByRole("checkbox", { name: "Application mobile (démo)" }).click()
-  await expect(access.getByLabel("Application mobile (démo)")).toBeChecked()
+  await dialog.getByRole("tab", { name: "Projets et rôles" }).click()
+  const access = dialog.getByLabel(`Accès de ${member.name} à Application mobile (démo)`)
+  await access.selectOption("member")
+  await expect(access).toHaveValue("member")
   await page.keyboard.press("Escape")
   await logout(page)
 

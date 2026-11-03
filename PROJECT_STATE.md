@@ -41,7 +41,7 @@
 
 - Pas de mise à jour en temps réel entre utilisateurs : les données d'un collègue apparaissent au rechargement des listes (retour sur l'onglet, actualisation, ou après 30 s lors d'une action).
 - Pas de réinitialisation de mot de passe par e-mail (pas de SMTP) : un propriétaire peut retirer puis recréer un membre.
-- Un seul « responsable » par tâche ; les autres personnes apparaissent comme intervenants via le chronomètre.
+- Le temps de travail d'un projet est visible de tous ses membres ; seules les pauses et les rapports d'équipe sont restreints (ADR-018).
 - Pas de réordonnancement des tâches à l'intérieur d'une colonne (tri par échéance puis priorité).
 - Pas de suppression définitive de projet (archivage réversible seulement).
 
@@ -59,6 +59,7 @@
 
 ## Journal de session
 
+- 2026-11-03 — Collaborateurs : rôles administrateur / chef de projet (par projet) / collaborateur, plusieurs collaborateurs par tâche avec temps estimé, estimé vs réel, équipe en ce moment, accès aux rapports, pauses visibles selon le rôle.
 - 2026-11-03 — Pauses : motif, nombre de pauses, pauses par jour, historique filtré, détection des pauses anormalement longues.
 - 2026-11-03 — Temps : vues jour/semaine/mois/année, totaux tâche et projet, historique des sessions, heures oubliées, corrections justifiées et tracées, description du travail.
 - 2026-11-03 — Feuille de temps quotidienne (projet, tâche, équipe) et pauses mesurées (Pause / Reprendre / Terminer) ; site en ligne sur https://kelenix.tech.

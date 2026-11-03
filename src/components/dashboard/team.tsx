@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ROLE_LABELS, type Profile, type Role } from "@/lib/domain"
+import { PROJECT_ROLE_LABELS, ROLE_LABELS, type Profile, type ProjectRole, type Role } from "@/lib/domain"
 import { errorMessage, keys, useProfiles, useProjects, useSetProjectAccess, useUpdateProfile } from "@/lib/queries"
 import { fieldErrors, memberSchema, passwordSchema } from "@/lib/schemas"
 import { getSupabase } from "@/lib/supabase/client"
@@ -29,7 +29,7 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
           <DialogTitle>{isOwner ? "Équipe et paramètres" : "Équipe"}</DialogTitle>
           <DialogDescription>
             {isOwner
-              ? "Gérez les membres, leurs rôles et les projets auxquels ils ont accès."
+              ? "Gérez les membres, leurs rôles, les projets auxquels ils ont accès et l'accès aux rapports."
               : "Les personnes qui travaillent dans cet espace."}
           </DialogDescription>
         </DialogHeader>
@@ -37,7 +37,7 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
           <Tabs defaultValue="members">
             <TabsList>
               <TabsTrigger value="members">Membres</TabsTrigger>
-              <TabsTrigger value="access">Accès aux projets</TabsTrigger>
+              <TabsTrigger value="access">Projets et rôles</TabsTrigger>
             </TabsList>
             <TabsContent value="members" className="space-y-6 pt-4">
               <MemberList />
@@ -58,6 +58,7 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
 function MemberList() {
   const { viewer, isOwner } = useDashboard()
   const { data: profiles = [] } = useProfiles()
+  const { data: projects = [] } = useProjects()
   const updateProfile = useUpdateProfile()
   const queryClient = useQueryClient()
   const confirm = useConfirm()
@@ -83,6 +84,7 @@ function MemberList() {
     <ul className="divide-y rounded-lg border">
       {profiles.map((member) => {
         const self = member.id === viewer.id
+        const managed = projects.filter((p) => !p.archived_at && p.manager_ids.includes(member.id)).length
         return (
           <li key={member.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
             <Assignee profile={member} size="md" />
@@ -90,8 +92,27 @@ function MemberList() {
               <p className="truncate text-sm font-medium">
                 {member.full_name} {self && <span className="text-muted-foreground">(vous)</span>}
               </p>
-              <p className="truncate text-xs text-muted-foreground">{member.email}</p>
+              <p className="truncate text-xs text-muted-foreground">
+                {member.email}
+                {member.role !== "owner" && managed > 0 && (
+                  <span className="font-medium text-primary">
+                    {" "}
+                    · {PROJECT_ROLE_LABELS.manager} ({managed} projet{managed > 1 ? "s" : ""})
+                  </span>
+                )}
+              </p>
             </div>
+            {isOwner && !self && member.role !== "owner" && (
+              <label className="flex items-center gap-2 text-xs">
+                <Checkbox
+                  checked={member.can_view_reports}
+                  onCheckedChange={(checked) =>
+                    updateProfile.mutate({ id: member.id, values: { can_view_reports: checked === true } })
+                  }
+                />
+                Rapports d&apos;équipe
+              </label>
+            )}
             {isOwner && !self ? (
               <>
                 <NativeSelect
@@ -183,30 +204,39 @@ function AccessMatrix() {
   const live = projects.filter((p) => !p.archived_at)
 
   if (collaborators.length === 0)
-    return <p className="text-sm text-muted-foreground">Ajoutez un collaborateur pour gérer ses accès. Les propriétaires accèdent à tous les projets.</p>
+    return <p className="text-sm text-muted-foreground">Ajoutez un collaborateur pour gérer ses accès. Les administrateurs accèdent à tous les projets.</p>
   if (live.length === 0) return <p className="text-sm text-muted-foreground">Aucun projet actif.</p>
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Un collaborateur ne voit que les projets cochés. Les propriétaires accèdent à tout.</p>
+      <p className="text-sm text-muted-foreground">
+        Un collaborateur ne voit que ses projets. Le chef de projet modifie le projet, gère ses collaborateurs, voit les
+        pauses de l&apos;équipe et corrige ses sessions. Les administrateurs accèdent à tout.
+      </p>
       {collaborators.map((member) => (
         <fieldset key={member.id} className="rounded-lg border p-3">
           <legend className="px-1 text-sm font-medium">{member.full_name}</legend>
-          <ul className="grid gap-1 sm:grid-cols-2">
+          <ul className="grid gap-x-4 gap-y-1 sm:grid-cols-2">
             {live.map((project) => {
-              const id = `access-${member.id}-${project.id}`
+              const role = project.manager_ids.includes(member.id) ? "manager" : project.member_ids.includes(member.id) ? "member" : ""
               return (
                 <li key={project.id} className="flex items-center gap-2 px-1 py-1">
-                  <Checkbox
-                    id={id}
-                    checked={project.member_ids.includes(member.id)}
-                    onCheckedChange={(checked) =>
-                      setAccess.mutate({ projectId: project.id, userId: member.id, granted: checked === true })
+                  <span className="min-w-0 flex-1 truncate text-sm">{project.name}</span>
+                  <NativeSelect
+                    aria-label={`Accès de ${member.full_name} à ${project.name}`}
+                    value={role}
+                    onChange={(e) =>
+                      setAccess.mutate({ projectId: project.id, userId: member.id, role: (e.target.value || null) as ProjectRole | null })
                     }
-                  />
-                  <label htmlFor={id} className="truncate text-sm">
-                    {project.name}
-                  </label>
+                    className="w-36"
+                  >
+                    <option value="">Aucun accès</option>
+                    {Object.entries(PROJECT_ROLE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </NativeSelect>
                 </li>
               )
             })}

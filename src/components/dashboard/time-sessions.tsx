@@ -40,9 +40,10 @@ const toLocalInput = (iso: string) => {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60_000).toISOString().slice(0, 16)
 }
 
+/** Une session se corrige par son auteur, un chef du projet ou un administrateur (comme en base). */
 function useCanEdit() {
-  const { viewer, isOwner } = useDashboard()
-  return (e: TimeEntry) => e.user_id === viewer.id || isOwner
+  const { viewer, canManage } = useDashboard()
+  return (e: TimeEntry & { task: Pick<Task, "project_id"> }) => e.user_id === viewer.id || canManage(e.task.project_id)
 }
 
 /** Temps passé d'un projet : feuille de temps, totaux par tâche, historique, ajout d'heures oubliées. */
@@ -432,7 +433,7 @@ function EditSessionDialog({ session, onClose }: { session: Session; onClose: ()
   )
 }
 
-/** Motif d'une pause (modifiable par son auteur ou le propriétaire) et alerte de durée anormale. */
+/** Motif d'une pause (modifiable par son auteur, un chef du projet ou un administrateur) et alerte de durée anormale. */
 function PauseBadges({ session, editable, now }: { session: Session; editable: boolean; now: number }) {
   const setReason = useSetPauseReason()
   const reason = pauseReasonOf(session)

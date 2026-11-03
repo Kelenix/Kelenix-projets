@@ -173,6 +173,20 @@ begin
     ('b0000000-0000-0000-0000-000000000105', sam, today - interval '1 day' + interval '16 hours', today - interval '1 day' + interval '16 hours 10 minutes', 'pause'),
     ('b0000000-0000-0000-0000-000000000122', karim, today - interval '3 days' + interval '12 hours', today - interval '3 days' + interval '13 hours', 'pause');
 
+  -- Chef de projet : Inès pilote la refonte du site vitrine.
+  update public.project_members set role = 'manager'
+  where project_id = 'a0000000-0000-0000-0000-000000000010' and user_id = ines;
+
+  -- Plusieurs collaborateurs par tâche, avec le temps estimé de chacun.
+  insert into public.task_assignees (task_id, user_id, estimated_minutes) values
+    ('b0000000-0000-0000-0000-000000000105', sam, 360),
+    ('b0000000-0000-0000-0000-000000000105', alex, 60),
+    ('b0000000-0000-0000-0000-000000000105', ines, 30),
+    ('b0000000-0000-0000-0000-000000000106', sam, 60),
+    ('b0000000-0000-0000-0000-000000000122', karim, 240),
+    ('b0000000-0000-0000-0000-000000000122', alex, 60)
+  on conflict (task_id, user_id) do update set estimated_minutes = excluded.estimated_minutes;
+
   -- Un chronomètre en cours (Inès sur « Optimisation des images »), si elle n'en a pas déjà un.
   insert into public.time_entries (task_id, user_id, started_at)
   select 'b0000000-0000-0000-0000-000000000108', ines, now() - interval '25 minutes'

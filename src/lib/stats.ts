@@ -51,7 +51,7 @@ export type MemberStats = {
 }
 
 /**
- * Statistiques par responsable (une ligne « À assigner » pour les tâches sans responsable).
+ * Statistiques par collaborateur affecté (une ligne « À assigner » pour les tâches sans personne).
  * `since` borne le compteur « terminées sur la période ».
  */
 export function memberStats(
@@ -61,7 +61,12 @@ export function memberStats(
   today = todayISO(),
   now = Date.now()
 ): MemberStats[] {
-  const groups = Map.groupBy(tasks, (t) => t.assignee_id)
+  // Une tâche compte pour chaque collaborateur affecté (responsable compris).
+  const groups = new Map<string | null, Task[]>()
+  for (const t of tasks) {
+    const ids = new Set([t.assignee_id, ...t.assignees.map((a) => a.user_id)].filter((id) => id !== null))
+    for (const id of ids.size ? ids : [null]) groups.set(id, [...(groups.get(id) ?? []), t])
+  }
   const entries = Map.groupBy(
     tasks.flatMap((t) => t.time_entries),
     (e) => e.user_id

@@ -2,16 +2,20 @@ import type { Enums, Tables } from "@/lib/database.types"
 
 export type Profile = Tables<"profiles">
 export type Client = Tables<"clients">
-export type Project = Tables<"projects"> & { member_ids: string[] }
+/** Projet avec ses membres ; `manager_ids` : ses chefs de projet. */
+export type Project = Tables<"projects"> & { member_ids: string[]; manager_ids: string[] }
 export type ChecklistItem = Pick<Tables<"task_checklist_items">, "id" | "label" | "done">
 export type TimeEntry = Pick<Tables<"time_entries">, "user_id" | "started_at" | "ended_at"> &
   Partial<Pick<Tables<"time_entries">, "id" | "kind" | "description" | "source" | "edited_at" | "pause_reason">>
-/** Tâche avec sa checklist et le temps passé, visibles directement sur les cartes. */
-export type Task = Tables<"tasks"> & { checklist: ChecklistItem[]; time_entries: TimeEntry[] }
+/** Collaborateur affecté à une tâche, avec son temps estimé (minutes). */
+export type Assignment = Pick<Tables<"task_assignees">, "user_id" | "estimated_minutes">
+/** Tâche avec sa checklist, ses collaborateurs affectés et le temps passé, visibles sur les cartes. */
+export type Task = Tables<"tasks"> & { checklist: ChecklistItem[]; assignees: Assignment[]; time_entries: TimeEntry[] }
 export type ProjectStatus = Enums<"project_status">
 export type TaskStatus = Enums<"task_status">
 export type TaskPriority = Enums<"task_priority">
 export type Role = Enums<"app_role">
+export type ProjectRole = "member" | "manager"
 
 export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
   planned: "Prévu",
@@ -36,9 +40,18 @@ export const TASK_PRIORITY_LABELS: Record<TaskPriority, string> = {
 }
 
 export const ROLE_LABELS: Record<Role, string> = {
-  owner: "Propriétaire",
+  owner: "Administrateur",
   collaborator: "Collaborateur",
 }
+
+export const PROJECT_ROLE_LABELS: Record<ProjectRole, string> = {
+  member: "Collaborateur",
+  manager: "Chef de projet",
+}
+
+/** Tâche affectée à la personne (responsable principal ou collaborateur affecté). */
+export const isAssigned = (task: Pick<Task, "assignee_id" | "assignees">, userId: string) =>
+  task.assignee_id === userId || task.assignees.some((a) => a.user_id === userId)
 
 /** Date du jour au format AAAA-MM-JJ, dans le fuseau local. */
 export function todayISO(now = new Date()) {

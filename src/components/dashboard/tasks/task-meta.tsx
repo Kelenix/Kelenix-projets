@@ -17,6 +17,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/lib/domain"
+import { formatDuration } from "@/lib/time"
 import { cn } from "@/lib/utils"
 
 const PRIORITY_STYLES: Record<TaskPriority, string> = {
@@ -82,12 +83,22 @@ export function DueDate({ task }: { task: Pick<Task, "due_date" | "status"> }) {
   )
 }
 
-export function Assignee({ profile, size = "sm" }: { profile?: Profile | null; size?: "sm" | "md" }) {
+export function Assignee({
+  profile,
+  size = "sm",
+  role = "Responsable",
+  className,
+}: {
+  profile?: Profile | null
+  size?: "sm" | "md"
+  role?: string
+  className?: string
+}) {
   const label = profile?.full_name ?? "À assigner"
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Avatar className={size === "sm" ? "size-6" : "size-8"} aria-label={`Responsable : ${label}`} role="img">
+        <Avatar className={cn(size === "sm" ? "size-6" : "size-8", className)} aria-label={`${role} : ${label}`} role="img">
           <AvatarFallback
             className={cn(
               "text-[10px] font-semibold",
@@ -98,7 +109,46 @@ export function Assignee({ profile, size = "sm" }: { profile?: Profile | null; s
           </AvatarFallback>
         </Avatar>
       </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
+      <TooltipContent>
+        {label}
+        {role !== "Responsable" && ` · ${role.toLowerCase()}`}
+      </TooltipContent>
     </Tooltip>
+  )
+}
+
+/** Responsable puis autres collaborateurs affectés (deux au plus, puis « +N »). */
+export function AssigneeStack({ task, profiles }: { task: Pick<Task, "assignee_id" | "assignees">; profiles: Map<string, Profile> }) {
+  const others = task.assignees.map((a) => a.user_id).filter((id) => id !== task.assignee_id)
+  return (
+    <span className="flex items-center -space-x-1.5">
+      <Assignee profile={task.assignee_id ? profiles.get(task.assignee_id) : undefined} className="ring-2 ring-card" />
+      {others.slice(0, 2).map((id) => (
+        <Assignee key={id} profile={profiles.get(id)} role="Affecté" className="ring-2 ring-card" />
+      ))}
+      {others.length > 2 && (
+        <span
+          className="relative grid size-6 place-items-center rounded-full border bg-card text-[10px] font-semibold text-muted-foreground ring-2 ring-card"
+          aria-label={`${others.length - 2} autres collaborateurs affectés`}
+          role="img"
+        >
+          +{others.length - 2}
+        </span>
+      )}
+    </span>
+  )
+}
+
+/** Écart réel − estimé : un dépassement est signalé par « + » et la couleur d'alerte. */
+export function Gap({ estimated, actual }: { estimated: number | null; actual: number }) {
+  if (estimated === null) return <span className="text-muted-foreground">—</span>
+  const diff = actual - estimated
+  if (Math.abs(diff) < 60_000) return <span className="text-muted-foreground">0</span>
+  return (
+    <span className={cn("font-medium", diff > 0 ? "text-destructive" : "text-[oklch(0.42_0.11_155)]")}>
+      {diff > 0 ? "+" : "−"}
+      {formatDuration(Math.abs(diff))}
+      <span className="sr-only">{diff > 0 ? " de dépassement" : " sous l'estimation"}</span>
+    </span>
   )
 }

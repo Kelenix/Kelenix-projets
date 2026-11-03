@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query"
 import { toast } from "sonner"
 import type { TablesInsert, TablesUpdate } from "@/lib/database.types"
-import type { Client, PauseReason, Profile, Project, Task } from "@/lib/domain"
+import type { Client, PauseReason, Profile, Project, ProjectRole, Task } from "@/lib/domain"
 import { getSupabase } from "@/lib/supabase/client"
 
 type PgError = { code?: string; message: string }
@@ -66,7 +66,7 @@ export function useProjects() {
       const rows = await fetchAll((from, to) =>
         getSupabase()
           .from("projects")
-          .select("*, project_members(user_id)")
+          .select("*, project_members(user_id, role)")
           .order("created_at", { ascending: false })
           .order("id")
           .range(from, to)
@@ -74,6 +74,7 @@ export function useProjects() {
       return rows.map(({ project_members, ...project }) => ({
         ...project,
         member_ids: project_members.map((m) => m.user_id),
+        manager_ids: project_members.filter((m) => m.role === "manager").map((m) => m.user_id),
       }))
     },
   })
@@ -86,13 +87,17 @@ export function useTasks() {
       const rows = await fetchAll((from, to) =>
         getSupabase()
           .from("tasks")
-          .select("*, task_checklist_items(id, label, done), time_entries(id, user_id, started_at, ended_at, kind, description, source, edited_at, pause_reason)")
+          .select("*, task_checklist_items(id, label, done), task_assignees(user_id, estimated_minutes), time_entries(id, user_id, started_at, ended_at, kind, description, source, edited_at, pause_reason)")
           .order("created_at")
           .order("id")
           .order("created_at", { referencedTable: "task_checklist_items" })
           .range(from, to)
       )
-      return rows.map(({ task_checklist_items, ...task }) => ({ ...task, checklist: task_checklist_items }))
+      return rows.map(({ task_checklist_items, task_assignees, ...task }) => ({
+        ...task,
+        checklist: task_checklist_items,
+        assignees: task_assignees,
+      }))
     },
   })
 }
@@ -152,17 +157,19 @@ export function useDeleteClient() {
 // ─── Projets ────────────────────────────────────────────────────────────────
 export function useSaveProject() {
   return useAction(
-    async ({ id, values, memberIds }: { id?: string; values: TablesInsert<"projects">; memberIds: string[] }) => {
+    async ({ id, values, members }: { id?: string; values: TablesInsert<"projects">; members: Record<string, ProjectRole> }) => {
       const supabase = getSupabase()
       const table = supabase.from("projects")
       const project = unwrap(await (id ? table.update(values).eq("id", id) : table.insert(values)).select().single())
 
-      const current = unwrap(await supabase.from("project_members").select("user_id").eq("project_id", project.id))
-      const currentIds = current.map((m) => m.user_id)
-      const toAdd = memberIds.filter((uid) => !currentIds.includes(uid))
-      const toRemove = currentIds.filter((uid) => !memberIds.includes(uid))
-      if (toAdd.length)
-        unwrap(await supabase.from("project_members").insert(toAdd.map((user_id) => ({ project_id: project.id, user_id }))))
+      // Accès : ajouts, retraits et changements de rôle par rapport à l'existant.
+      const current = unwrap(await supabase.from("project_members").select("user_id, role").eq("project_id", project.id))
+      const before = new Map(current.map((m) => [m.user_id, m.role]))
+      const toRemove = current.map((m) => m.user_id).filter((uid) => !members[uid])
+      const toUpsert = Object.entries(members)
+        .filter(([uid, role]) => before.get(uid) !== role)
+        .map(([user_id, role]) => ({ project_id: project.id, user_id, role }))
+      if (toUpsert.length) unwrap(await supabase.from("project_members").upsert(toUpsert))
       if (toRemove.length)
         unwrap(await supabase.from("project_members").delete().eq("project_id", project.id).in("user_id", toRemove))
       return project
@@ -180,26 +187,31 @@ export function useUpdateProject() {
   )
 }
 
-/** Accès d'un membre à un projet, mis à jour de façon optimiste (cases à cocher). */
+/**
+ * Accès d'un membre à un projet : aucun (`null`), collaborateur ou chef de projet.
+ * Mis à jour de façon optimiste.
+ */
 export function useSetProjectAccess() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async ({ projectId, userId, granted }: { projectId: string; userId: string; granted: boolean }) => {
+    mutationFn: async ({ projectId, userId, role }: { projectId: string; userId: string; role: ProjectRole | null }) => {
       const table = getSupabase().from("project_members")
-      return unwrap(
-        await (granted
-          ? table.insert({ project_id: projectId, user_id: userId })
-          : table.delete().eq("project_id", projectId).eq("user_id", userId))
-      )
+      if (!role) return unwrap(await table.delete().eq("project_id", projectId).eq("user_id", userId))
+      return unwrap(await table.upsert({ project_id: projectId, user_id: userId, role }))
     },
-    onMutate: async ({ projectId, userId, granted }) => {
+    onMutate: async ({ projectId, userId, role }) => {
       await queryClient.cancelQueries({ queryKey: keys.projects })
       const previous = queryClient.getQueryData<Project[]>(keys.projects)
+      const without = (ids: string[]) => ids.filter((id) => id !== userId)
       queryClient.setQueryData<Project[]>(keys.projects, (projects) =>
         projects?.map((p) =>
           p.id !== projectId
             ? p
-            : { ...p, member_ids: granted ? [...p.member_ids, userId] : p.member_ids.filter((id) => id !== userId) }
+            : {
+                ...p,
+                member_ids: role ? [...without(p.member_ids), userId] : without(p.member_ids),
+                manager_ids: role === "manager" ? [...without(p.manager_ids), userId] : without(p.manager_ids),
+              }
         )
       )
       return { previous }
@@ -252,6 +264,37 @@ export function useDeleteTask() {
     async (id: string) => unwrap(await getSupabase().from("tasks").delete().eq("id", id)),
     () => [keys.tasks],
     "Tâche supprimée."
+  )
+}
+
+/** Affecte ou désaffecte un collaborateur d'une tâche. */
+export function useSetAssigned() {
+  return useAction(
+    async ({ taskId, userId, assigned }: { taskId: string; userId: string; assigned: boolean }) => {
+      const table = getSupabase().from("task_assignees")
+      return unwrap(
+        await (assigned
+          ? table.insert({ task_id: taskId, user_id: userId })
+          : table.delete().eq("task_id", taskId).eq("user_id", userId))
+      )
+    },
+    () => [keys.tasks]
+  )
+}
+
+/** Temps estimé d'un collaborateur affecté (minutes, `null` pour l'effacer). */
+export function useSetEstimate() {
+  return useAction(
+    async ({ taskId, userId, minutes }: { taskId: string; userId: string; minutes: number | null }) =>
+      unwrap(
+        await getSupabase()
+          .from("task_assignees")
+          .update({ estimated_minutes: minutes })
+          .eq("task_id", taskId)
+          .eq("user_id", userId)
+      ),
+    () => [keys.tasks],
+    "Temps estimé enregistré."
   )
 }
 

@@ -10,9 +10,9 @@ async function requireOwner() {
   return viewer?.role === "owner" ? viewer : null
 }
 
-/** Création d'un membre de l'équipe par le propriétaire (compte e-mail + mot de passe provisoire). */
+/** Création d'un membre de l'équipe par un administrateur (compte e-mail + mot de passe provisoire). */
 export async function createMember(input: unknown): Promise<Result> {
-  if (!(await requireOwner())) return { ok: false, error: "Seul un propriétaire peut ajouter un membre." }
+  if (!(await requireOwner())) return { ok: false, error: "Seul un administrateur peut ajouter un membre." }
 
   const parsed = memberSchema.safeParse(input)
   if (!parsed.success) return { ok: false, error: "Vérifiez le formulaire.", fields: fieldErrors(parsed.error) }
@@ -40,7 +40,7 @@ export async function createMember(input: unknown): Promise<Result> {
 /** Suppression d'un membre (jamais soi-même). Ses tâches repassent « À assigner ». */
 export async function deleteMember(userId: unknown): Promise<Result> {
   const owner = await requireOwner()
-  if (!owner) return { ok: false, error: "Seul un propriétaire peut retirer un membre." }
+  if (!owner) return { ok: false, error: "Seul un administrateur peut retirer un membre." }
   if (typeof userId !== "string") return { ok: false, error: "Membre introuvable." }
   if (userId === owner.id) return { ok: false, error: "Vous ne pouvez pas supprimer votre propre compte." }
 

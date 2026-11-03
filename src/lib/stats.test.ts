@@ -18,11 +18,12 @@ const task = (over: Partial<Task>): Task => ({
   updated_at: "",
   completed_at: null,
   checklist: [],
+  assignees: [],
   time_entries: [],
   ...over,
 })
 
-const profile = (id: string, full_name: string): Profile => ({ id, full_name, email: `${id}@x.test`, role: "collaborator", created_at: "" })
+const profile = (id: string, full_name: string): Profile => ({ id, full_name, email: `${id}@x.test`, role: "collaborator", can_view_reports: false, created_at: "" })
 
 describe("startOfWeek", () => {
   it("renvoie le lundi de la semaine", () => {
@@ -86,6 +87,15 @@ describe("memberStats", () => {
     const rows = memberStats(tasks, [profile("b", "Bruno"), profile("a", "Alice")], since)
     expect(rows.map((r) => r.name)).toEqual(["Alice", "À assigner", "Bruno"])
     expect(memberStats([], [profile("a", "Alice")], since).map((r) => r.name)).toEqual(["Alice"])
+  })
+
+  it("une tâche partagée compte pour chaque collaborateur affecté", () => {
+    const shared = task({ assignee_id: "a", assignees: [{ user_id: "a", estimated_minutes: null }, { user_id: "b", estimated_minutes: 60 }] })
+    const rows = memberStats([shared], [profile("a", "Alice"), profile("b", "Bruno")], since)
+    expect(rows.map((r) => [r.name, r.total])).toEqual([
+      ["Alice", 1],
+      ["Bruno", 1],
+    ])
   })
 
   it("statusCounts", () => {

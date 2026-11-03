@@ -4,19 +4,17 @@ import { useState } from "react"
 import type { Profile, Task } from "@/lib/domain"
 import { cn } from "@/lib/utils"
 import { ChecklistProgress, InlineChecklist } from "./inline-checklist"
-import { Assignee, BlockedBadge, DueDate, PriorityBadge, statusAccent, TaskStatusBadge } from "./task-meta"
+import { AssigneeStack, BlockedBadge, DueDate, PriorityBadge, statusAccent, TaskStatusBadge } from "./task-meta"
 import { TaskTime } from "./task-time"
 
 export function TaskCard({
   task,
-  assignee,
   profiles,
   projectName,
   onOpen,
   className,
 }: {
   task: Task
-  assignee?: Profile
   profiles: Map<string, Profile>
   projectName?: string
   onOpen: () => void
@@ -52,7 +50,7 @@ export function TaskCard({
         <DueDate task={task} />
         <ChecklistProgress task={task} expanded={checklistOpen} onToggle={() => setChecklistOpen((o) => !o)} />
         <span className="relative ml-auto">
-          <Assignee profile={assignee} />
+          <AssigneeStack task={task} profiles={profiles} />
         </span>
       </div>
       {checklistOpen && <InlineChecklist task={task} className="mt-2 border-t pt-2" />}

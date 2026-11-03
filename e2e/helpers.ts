@@ -3,6 +3,8 @@ import { expect, type Locator, type Page } from "@playwright/test"
 // Comptes de démonstration fictifs créés par supabase/seed.sql (base locale uniquement).
 export const OWNER = { email: "demo.owner@kelenix.test", password: "KelenixDemo2026!" }
 export const COLLABORATOR = { email: "demo.collab@kelenix.test", password: "KelenixDemo2026!" }
+/** Chef du projet « Site e-commerce (démo) ». */
+export const PROJECT_LEAD = { email: "demo.lead@kelenix.test", password: "KelenixDemo2026!" }
 
 export async function login(page: Page, account: { email: string; password: string }) {
   await page.goto("/login")

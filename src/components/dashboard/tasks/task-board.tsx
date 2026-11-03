@@ -91,7 +91,6 @@ export function TaskBoard({ tasks, profiles, projectNames, onOpen }: BoardProps)
                     <DraggableCard key={task.id} id={task.id} title={task.title}>
                       <TaskCard
                         task={task}
-                        assignee={task.assignee_id ? profiles.get(task.assignee_id) : undefined}
                         profiles={profiles}
                         projectName={projectNames?.get(task.project_id)}
                         onOpen={() => onOpen(task.id)}
@@ -108,7 +107,6 @@ export function TaskBoard({ tasks, profiles, projectNames, onOpen }: BoardProps)
         {activeTask && (
           <TaskCard
             task={activeTask}
-            assignee={activeTask.assignee_id ? profiles.get(activeTask.assignee_id) : undefined}
             profiles={profiles}
             onOpen={() => undefined}
             className="rotate-2 shadow-lg"

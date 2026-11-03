@@ -11,10 +11,10 @@ test("statistiques : graphiques et tableau par membre, mis à jour en direct", a
   await expect(table.getByRole("rowheader", { name: /Alex Martin \(démo\)/ })).toBeVisible()
   await expect(table.getByRole("rowheader", { name: "Sam Leroy (démo)" })).toBeVisible()
 
-  // Filtre par projet : le collaborateur n'a pas de tâche sur « Application mobile ».
+  // Filtre par projet : seule l'équipe du projet apparaît (le collaborateur n'est pas membre d'« Application mobile »).
   await page.getByLabel("Projet", { exact: true }).selectOption({ label: "Application mobile (démo)" })
-  const samRow = table.getByRole("row", { name: /Sam Leroy/ })
-  await expect(samRow.getByRole("cell").nth(1)).toHaveText("0")
+  await expect(table.getByRole("rowheader", { name: /Alex Martin \(démo\)/ })).toBeVisible()
+  await expect(table.getByRole("rowheader", { name: "Sam Leroy (démo)" })).toHaveCount(0)
 
   // Terminer une tâche met à jour les graphiques sans recharger.
   const tiles = page.getByText(/^Terminées \(8 sem\.\)$/).locator("..")

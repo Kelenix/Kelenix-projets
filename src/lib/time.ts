@@ -1,4 +1,4 @@
-import { isLongPause, type TimeEntry } from "@/lib/domain"
+import { isLongPause, type Task, type TimeEntry } from "@/lib/domain"
 
 const isWork = (e: TimeEntry) => e.kind !== "pause"
 
@@ -181,4 +181,34 @@ export function formatDuration(ms: number, live = false) {
   if (live) return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`
   if (h > 0) return `${h} h ${pad(m)}`
   return m > 0 ? `${m} min` : "< 1 min"
+}
+
+export type EstimateRow = { userId: string; tasks: number; estimatedMs: number; actualMs: number }
+
+/**
+ * Temps estimé et temps de travail réellement passé par collaborateur, sur les tâches où une
+ * estimation lui est attribuée (sans estimation, aucune comparaison possible).
+ */
+export function estimateVsActual(tasks: Pick<Task, "assignees" | "time_entries">[], now = Date.now()): EstimateRow[] {
+  const rows = new Map<string, EstimateRow>()
+  for (const task of tasks)
+    for (const a of task.assignees) {
+      if (a.estimated_minutes === null) continue
+      const row = rows.get(a.user_id) ?? { userId: a.user_id, tasks: 0, estimatedMs: 0, actualMs: 0 }
+      row.tasks++
+      row.estimatedMs += a.estimated_minutes * 60_000
+      row.actualMs += totals(task.time_entries.filter((e) => e.user_id === a.user_id), now).work
+      rows.set(a.user_id, row)
+    }
+  return [...rows.values()]
+}
+
+export type Activity = { taskId: string; entry: TimeEntry }
+
+/** Session ouverte de chaque personne (une au plus) : la tâche sur laquelle elle travaille ou est en pause. */
+export function currentActivity(tasks: Pick<Task, "id" | "time_entries">[]) {
+  const activity = new Map<string, Activity>()
+  for (const task of tasks)
+    for (const entry of task.time_entries) if (!entry.ended_at) activity.set(entry.user_id, { taskId: task.id, entry })
+  return activity
 }

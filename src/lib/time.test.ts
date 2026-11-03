@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { isLongPause } from "./domain"
-import { formatDuration, periodBuckets, timeByUser, timeSince, timesheet, totals } from "./time"
+import { currentActivity, estimateVsActual, formatDuration, periodBuckets, timeByUser, timeSince, timesheet, totals } from "./time"
 
 const at = (min: number) => new Date(Date.UTC(2026, 10, 2, 9, min)).toISOString()
 const now = Date.parse(at(120))
@@ -102,5 +102,39 @@ describe("pauses anormalement longues", () => {
   it("une pause en cours devient longue en dépassant le seuil", () => {
     const open = { ...pause(0, "personal"), ended_at: null }
     expect(isLongPause(open, Date.parse(open.started_at) + 31 * 60_000)).toBe(true)
+  })
+})
+
+describe("estimateVsActual", () => {
+  it("compare l'estimé au travail réel de chaque collaborateur affecté, pauses et autres personnes exclues", () => {
+    const rows = estimateVsActual(
+      [
+        {
+          assignees: [
+            { user_id: "a", estimated_minutes: 60 },
+            { user_id: "b", estimated_minutes: null },
+          ],
+          time_entries: [
+            { user_id: "a", started_at: at(0), ended_at: at(50), kind: "work" },
+            { user_id: "a", started_at: at(50), ended_at: at(80), kind: "pause" },
+            { user_id: "b", started_at: at(0), ended_at: at(30), kind: "work" },
+          ],
+        },
+        { assignees: [{ user_id: "a", estimated_minutes: 30 }], time_entries: [] },
+      ],
+      now
+    )
+    expect(rows).toEqual([{ userId: "a", tasks: 2, estimatedMs: 90 * 60_000, actualMs: 50 * 60_000 }])
+  })
+})
+
+describe("currentActivity", () => {
+  it("donne la tâche de la session ouverte de chaque personne", () => {
+    const activity = currentActivity([
+      { id: "t1", time_entries: [{ user_id: "a", started_at: at(0), ended_at: at(10) }] },
+      { id: "t2", time_entries: [{ user_id: "a", started_at: at(10), ended_at: null, kind: "pause" }] },
+    ])
+    expect(activity.get("a")).toMatchObject({ taskId: "t2", entry: { kind: "pause" } })
+    expect(activity.has("b")).toBe(false)
   })
 })
