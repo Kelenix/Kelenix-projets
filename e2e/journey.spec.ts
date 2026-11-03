@@ -83,7 +83,7 @@ test("parcours complet du propriétaire", async ({ page }) => {
   const sheet = page.getByRole("dialog")
   await sheet.getByLabel("Statut").selectOption("in_progress")
   await sheet.getByLabel("Nouvel élément de checklist").fill("Lister les cas de test")
-  await sheet.getByRole("button", { name: "Ajouter" }).first().click()
+  await sheet.getByRole("button", { name: "Ajouter", exact: true }).first().click()
   await expect(sheet.getByText("Lister les cas de test")).toBeVisible()
   await sheet.getByRole("button", { name: "Marquer comme bloquée" }).click()
   await sheet.getByLabel("Qu'est-ce qui bloque ?").fill("En attente des retours client")

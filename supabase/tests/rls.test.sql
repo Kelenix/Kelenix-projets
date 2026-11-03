@@ -1,6 +1,6 @@
 -- Tests RLS (pgTAP) : `pnpm test:db`. S'appuie sur les comptes de démo de seed.sql.
 begin;
-select plan(29);
+select plan(39);
 
 create temp table projects_all_for_test on commit drop as select id from public.projects;
 grant select on projects_all_for_test to authenticated;
@@ -87,6 +87,54 @@ select public.stop_timer();
 select is(
   (select count(*)::int from public.time_entries where user_id = auth.uid() and ended_at is null), 0,
   'fin : plus aucune session ouverte'
+);
+
+-- Heures oubliées, modification justifiée, description.
+create temp table own_task_for_test on commit drop as
+  select id from public.tasks where project_id = 'a0000000-0000-0000-0000-000000000001' order by created_at limit 1;
+select lives_ok(
+  $$select public.log_time((select id from own_task_for_test), date_trunc('day', now()) - interval '400 days' + interval '3 hours',
+    date_trunc('day', now()) - interval '400 days' + interval '5 hours', 'Intégration du menu')$$,
+  'saisie manuelle : heures oubliées enregistrées'
+);
+select is(
+  (select source || '/' || description from public.time_entries where user_id = auth.uid() and source = 'manual'),
+  'manual/Intégration du menu', 'saisie manuelle : marquée « manuelle » avec sa description'
+);
+select throws_ok(
+  $$select public.log_time((select id from own_task_for_test), now() + interval '1 hour', now() + interval '2 hours', null)$$,
+  'P0001', null, 'saisie manuelle : pas de temps dans le futur'
+);
+select throws_ok(
+  $$select public.log_time((select id from own_task_for_test), date_trunc('day', now()) - interval '400 days' + interval '4 hours',
+    date_trunc('day', now()) - interval '400 days' + interval '6 hours', null)$$,
+  'P0001', null, 'saisie manuelle : pas de chevauchement avec une autre session'
+);
+select throws_ok(
+  $$select public.log_time((select id from foreign_task_for_test), now() - interval '3 hours', now() - interval '2 hours', null)$$,
+  '42501', null, 'saisie manuelle : uniquement sur ses projets'
+);
+select throws_ok(
+  $$select public.edit_time_entry((select id from public.time_entries where user_id = auth.uid() and source = 'manual'),
+    date_trunc('day', now()) - interval '400 days' + interval '3 hours', date_trunc('day', now()) - interval '400 days' + interval '6 hours', '')$$,
+  'P0001', null, 'modification : justification obligatoire'
+);
+select lives_ok(
+  $$select public.edit_time_entry((select id from public.time_entries where user_id = auth.uid() and source = 'manual'),
+    date_trunc('day', now()) - interval '400 days' + interval '3 hours', date_trunc('day', now()) - interval '400 days' + interval '6 hours', 'Oubli de la dernière heure')$$,
+  'modification : acceptée avec justification'
+);
+select is(
+  (select reason from public.time_entry_changes where changed_by = auth.uid()), 'Oubli de la dernière heure',
+  'modification : ancienne plage et justification conservées'
+);
+select throws_ok(
+  $$select public.edit_time_entry((select id from public.time_entries where user_id <> auth.uid() limit 1), now() - interval '2 hours', now() - interval '1 hour', 'Tentative')$$,
+  '42501', null, 'modification : impossible sur la session d''une autre personne'
+);
+select lives_ok(
+  $$select public.set_time_entry_description((select id from public.time_entries where user_id = auth.uid() and source = 'manual'), 'Menu et pied de page')$$,
+  'description : modifiable par l''auteur de la session'
 );
 select throws_ok(
   $$select public.start_timer((select id from foreign_task_for_test))$$,

@@ -4,18 +4,23 @@ import { ChevronLeft, ChevronRight, Clock } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { NativeSelect } from "@/components/native-select"
 import { Button } from "@/components/ui/button"
-import { initials, todayISO, type Profile, type Task } from "@/lib/domain"
-import { dailyTimesheet, formatDuration, weekDays } from "@/lib/time"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { initials, type Profile, type Task } from "@/lib/domain"
+import { formatDuration, periodBuckets, timesheet, type Period } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import { useDashboard } from "./state"
 
-const iso = (d: Date) => todayISO(d)
-const dayLabel = (d: Date) => d.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit" })
-const rangeLabel = (days: Date[]) =>
-  `${days[0]!.toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} – ${days[6]!.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}`
+const PERIODS: { value: Period; label: string }[] = [
+  { value: "day", label: "Jour" },
+  { value: "week", label: "Semaine" },
+  { value: "month", label: "Mois" },
+  { value: "year", label: "Année" },
+]
+const PERIOD_NOUN: Record<Period, string> = { day: "ce jour", week: "cette semaine", month: "ce mois", year: "cette année" }
+const CURRENT: Record<Period, string> = { day: "Aujourd'hui", week: "Cette semaine", month: "Ce mois", year: "Cette année" }
 
 /** Rafraîchit le calcul toutes les 30 s tant qu'une session est ouverte. */
-function useTick(active: boolean) {
+export function useTick(active: boolean) {
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     if (!active) return
@@ -26,8 +31,9 @@ function useTick(active: boolean) {
 }
 
 /**
- * Feuille de temps hebdomadaire : travail de chaque personne, jour par jour, total de la semaine
- * et temps de pause. `tasks` délimite le périmètre (un projet, une tâche, ou tous les projets).
+ * Feuille de temps : travail de chaque personne par jour (vue jour ou semaine), par semaine
+ * (vue mois) ou par mois (vue année), avec totaux et temps de pause. `tasks` délimite le
+ * périmètre (une tâche, un projet ou tous les projets).
  */
 export function Timesheet({
   tasks,
@@ -42,35 +48,51 @@ export function Timesheet({
   className?: string
 }) {
   const { viewer } = useDashboard()
+  const [period, setPeriod] = useState<Period>("week")
   const [offset, setOffset] = useState(0)
   const [taskId, setTaskId] = useState("")
-  const days = useMemo(() => weekDays(offset), [offset])
+  const { title, buckets } = useMemo(() => periodBuckets(period, offset), [period, offset])
   const scoped = taskId ? tasks.filter((t) => t.id === taskId) : tasks
   const entries = scoped.flatMap((t) => t.time_entries)
   const now = useTick(entries.some((e) => !e.ended_at))
-  const rows = dailyTimesheet(entries, days, now)
+  const rows = timesheet(entries, buckets, now)
   const names = new Map(profiles.map((p) => [p.id, p.full_name]))
-  const today = iso(new Date())
-  const dayTotals = days.map((_, i) => rows.reduce((sum, r) => sum + r.perDay[i]!, 0))
+  const current = buckets.findIndex((b) => now >= b.start.getTime() && now < b.end.getTime())
+  const bucketTotals = buckets.map((_, i) => rows.reduce((sum, r) => sum + r.perBucket[i]!, 0))
   const cell = (ms: number) => (ms === 0 ? <span className="text-muted-foreground/60">—</span> : formatDuration(ms))
 
   return (
     <div className={cn("space-y-3", className)}>
       <div className="flex flex-wrap items-center gap-2">
+        <Tabs
+          value={period}
+          onValueChange={(v) => {
+            setPeriod(v as Period)
+            setOffset(0)
+          }}
+        >
+          <TabsList aria-label="Période">
+            {PERIODS.map((p) => (
+              <TabsTrigger key={p.value} value={p.value}>
+                {p.label}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </Tabs>
         <div className="flex items-center gap-1">
-          <Button variant="outline" size="icon-sm" aria-label="Semaine précédente" onClick={() => setOffset((o) => o - 1)}>
+          <Button variant="outline" size="icon-sm" aria-label="Période précédente" onClick={() => setOffset((o) => o - 1)}>
             <ChevronLeft />
           </Button>
-          <span className="min-w-44 text-center text-sm font-medium tabular-nums" aria-live="polite">
-            {rangeLabel(days)}
+          <span className="min-w-44 text-center text-sm font-medium capitalize tabular-nums" aria-live="polite">
+            {title}
           </span>
-          <Button variant="outline" size="icon-sm" aria-label="Semaine suivante" onClick={() => setOffset((o) => o + 1)}>
+          <Button variant="outline" size="icon-sm" aria-label="Période suivante" onClick={() => setOffset((o) => o + 1)}>
             <ChevronRight />
           </Button>
         </div>
         {offset !== 0 && (
           <Button variant="ghost" size="sm" onClick={() => setOffset(0)}>
-            Cette semaine
+            {CURRENT[period]}
           </Button>
         )}
         {taskFilter && tasks.length > 1 && (
@@ -87,24 +109,25 @@ export function Timesheet({
 
       {rows.length === 0 ? (
         <p className="flex items-center justify-center gap-2 rounded-xl border border-dashed bg-card/60 px-6 py-8 text-sm text-muted-foreground">
-          <Clock className="size-4" aria-hidden /> Aucun temps enregistré cette semaine.
+          <Clock className="size-4" aria-hidden /> Aucun temps enregistré {PERIOD_NOUN[period]}.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border bg-card">
-          <table className="w-full min-w-[720px] text-sm">
-            <caption className="sr-only">Temps de travail par personne et par jour, semaine du {rangeLabel(days)}</caption>
+          <table className={cn("w-full text-sm", buckets.length > 3 && "min-w-[720px]")}>
+            <caption className="sr-only">Temps de travail par personne — {title}</caption>
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">
                 <th scope="col" className="px-3 py-2 font-medium">Personne</th>
-                {days.map((d) => (
-                  <th
-                    key={iso(d)}
-                    scope="col"
-                    className={cn("px-2 py-2 text-right font-medium capitalize", iso(d) === today && "text-primary")}
-                  >
-                    {dayLabel(d)}
-                  </th>
-                ))}
+                {buckets.length > 1 &&
+                  buckets.map((b, i) => (
+                    <th
+                      key={b.start.toISOString()}
+                      scope="col"
+                      className={cn("px-2 py-2 text-right font-medium capitalize", i === current && "text-primary")}
+                    >
+                      {b.label}
+                    </th>
+                  ))}
                 <th scope="col" className="px-3 py-2 text-right font-medium">Travail</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Pauses</th>
               </tr>
@@ -125,11 +148,12 @@ export function Timesheet({
                         </span>
                       </span>
                     </th>
-                    {row.perDay.map((ms, i) => (
-                      <td key={i} className={cn("px-2 py-2 text-right tabular-nums", iso(days[i]!) === today && "bg-accent/40")}>
-                        {cell(ms)}
-                      </td>
-                    ))}
+                    {buckets.length > 1 &&
+                      row.perBucket.map((ms, i) => (
+                        <td key={i} className={cn("px-2 py-2 text-right tabular-nums", i === current && "bg-accent/40")}>
+                          {cell(ms)}
+                        </td>
+                      ))}
                     <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatDuration(row.work)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-[oklch(0.5_0.14_55)]">{cell(row.pause)}</td>
                   </tr>
@@ -140,11 +164,12 @@ export function Timesheet({
               <tfoot>
                 <tr className="border-t bg-muted/40 text-xs font-medium">
                   <th scope="row" className="px-3 py-2 text-left">Total</th>
-                  {dayTotals.map((ms, i) => (
-                    <td key={i} className="px-2 py-2 text-right tabular-nums">
-                      {cell(ms)}
-                    </td>
-                  ))}
+                  {buckets.length > 1 &&
+                    bucketTotals.map((ms, i) => (
+                      <td key={i} className="px-2 py-2 text-right tabular-nums">
+                        {cell(ms)}
+                      </td>
+                    ))}
                   <td className="px-3 py-2 text-right tabular-nums">{formatDuration(rows.reduce((s, r) => s + r.work, 0))}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{cell(rows.reduce((s, r) => s + r.pause, 0))}</td>
                 </tr>

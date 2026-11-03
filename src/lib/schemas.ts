@@ -80,3 +80,25 @@ export function fieldErrors(error: z.ZodError) {
   }
   return errors
 }
+
+const timeOfDay = z.string().regex(/^\d{2}:\d{2}$/, "Heure invalide.")
+
+/** Heures oubliées : une date, une heure de début et de fin (même jour), une description facultative. */
+export const manualTimeSchema = z
+  .object({
+    task_id: z.string().min(1, "Choisissez une tâche."),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Date invalide."),
+    start: timeOfDay,
+    end: timeOfDay,
+    description: optionalText(1000),
+  })
+  .refine((v) => v.end > v.start, { message: "La fin doit être après le début.", path: ["end"] })
+
+/** Modification d'une session : nouvelle plage et justification obligatoire. */
+export const editSessionSchema = z
+  .object({
+    started_at: z.string().min(1, "Indiquez le début."),
+    ended_at: z.string().min(1, "Indiquez la fin."),
+    reason: z.string().trim().min(3, "Expliquez la raison de la modification.").max(1000, "1000 caractères maximum."),
+  })
+  .refine((v) => v.ended_at > v.started_at, { message: "La fin doit être après le début.", path: ["ended_at"] })

@@ -5,6 +5,15 @@
 
 ---
 
+## ADR-016 — Gestion complète du temps : périodes, saisie manuelle, corrections tracées
+
+- **Date** : 2026-11-03
+- **Statut** : Accepté (demande de l'utilisateur)
+- **Décideur** : Claude (rôles : product-owner, database-architect, security-engineer)
+- **Décision** : Feuille de temps par jour / semaine / mois (par semaines) / année (par mois) ; totaux par tâche et par projet ; historique des sessions groupé par jour. Heures oubliées via `log_time` (au nom de l'utilisateur, marquées « ajout manuel »). Corrections via `edit_time_entry` : justification obligatoire, ancienne plage conservée dans `time_entry_changes`, réservées à l'auteur de la session ou au propriétaire. Description du travail modifiable sans justification. Contrôles serveur : fin après début, pas de temps futur, 16 h maximum, aucun chevauchement entre sessions d'une même personne.
+- **Alternatives écartées** : Écriture directe dans `time_entries` — falsifiable ; suppression de sessions — non demandée, la correction justifiée suffit et garde la traçabilité.
+- **Impact** : fonctionnel / données / sécurité
+
 ## ADR-015 — Feuille de temps quotidienne et pauses mesurées
 
 - **Date** : 2026-11-03

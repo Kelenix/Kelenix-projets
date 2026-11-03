@@ -59,6 +59,7 @@
 
 ## Journal de session
 
+- 2026-11-03 — Temps : vues jour/semaine/mois/année, totaux tâche et projet, historique des sessions, heures oubliées, corrections justifiées et tracées, description du travail.
 - 2026-11-03 — Feuille de temps quotidienne (projet, tâche, équipe) et pauses mesurées (Pause / Reprendre / Terminer) ; site en ligne sur https://kelenix.tech.
 - 2026-11-03 — Pipeline en 8 étapes (préproduction temporaire testée puis production), image unique, publication via le nginx existant du VPS sans toucher aux autres services ; domaine kelenix.tech.
 - 2026-11-02 — Audit de sécurité (historique non falsifiable, route admin bloquée, en-têtes, dépendances), pile Docker de production testée en local, CI/CD GitHub Actions vers VPS.

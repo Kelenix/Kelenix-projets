@@ -86,7 +86,7 @@ export function useTasks() {
       const rows = await fetchAll((from, to) =>
         getSupabase()
           .from("tasks")
-          .select("*, task_checklist_items(id, label, done), time_entries(user_id, started_at, ended_at, kind)")
+          .select("*, task_checklist_items(id, label, done), time_entries(id, user_id, started_at, ended_at, kind, description, source, edited_at)")
           .order("created_at")
           .order("id")
           .order("created_at", { referencedTable: "task_checklist_items" })
@@ -344,5 +344,78 @@ export function useUpdateProfile() {
       unwrap(await getSupabase().from("profiles").update(values).eq("id", id)),
     () => [keys.profiles],
     "Profil mis à jour."
+  )
+}
+
+// ─── Sessions de temps : historique des modifications, ajout, correction, description ────
+export const timeKeys = {
+  changes: (scope: { projectId?: string; taskId?: string }) => ["time-changes", scope] as const,
+}
+
+/** Journal des modifications de sessions d'une tâche ou d'un projet. */
+export function useTimeChanges(scope: { projectId?: string; taskId?: string }) {
+  return useQuery({
+    queryKey: timeKeys.changes(scope),
+    queryFn: async () => {
+      const base = getSupabase().from("time_entry_changes")
+      const query = scope.taskId
+        ? base.select("*").eq("task_id", scope.taskId)
+        : base.select("*, tasks!inner(project_id)").eq("tasks.project_id", scope.projectId!)
+      return unwrap(await query.order("changed_at", { ascending: false }))
+    },
+  })
+}
+
+function useTimeWrite<TVars>(fn: (vars: TVars) => Promise<unknown>, success: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: keys.tasks })
+      queryClient.invalidateQueries({ queryKey: ["time-changes"] })
+      toast.success(success)
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  })
+}
+
+/** Heures oubliées, enregistrées au nom de l'utilisateur connecté. */
+export function useLogTime() {
+  return useTimeWrite(
+    async (v: { taskId: string; startedAt: string; endedAt: string; description: string | null }) =>
+      unwrap(
+        await getSupabase().rpc("log_time", {
+          p_task_id: v.taskId,
+          p_started_at: v.startedAt,
+          p_ended_at: v.endedAt,
+          p_description: v.description ?? "",
+        })
+      ),
+    "Temps ajouté."
+  )
+}
+
+/** Correction d'une session : la justification et l'ancienne plage sont conservées. */
+export function useEditTimeEntry() {
+  return useTimeWrite(
+    async (v: { id: string; startedAt: string; endedAt: string; reason: string }) =>
+      unwrap(
+        await getSupabase().rpc("edit_time_entry", {
+          p_id: v.id,
+          p_started_at: v.startedAt,
+          p_ended_at: v.endedAt,
+          p_reason: v.reason,
+        })
+      ),
+    "Session modifiée."
+  )
+}
+
+/** Description du travail réalisé pendant une session. */
+export function useSetTimeDescription() {
+  return useTimeWrite(
+    async (v: { id: string; description: string }) =>
+      unwrap(await getSupabase().rpc("set_time_entry_description", { p_id: v.id, p_description: v.description })),
+    "Description enregistrée."
   )
 }

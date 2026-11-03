@@ -39,7 +39,7 @@ import {
 import { linkSchema } from "@/lib/schemas"
 import { useDashboard } from "../state"
 import { BlockedBadge } from "./task-meta"
-import { Timesheet } from "../timesheet"
+import { TaskTimeDetails } from "../time-sessions"
 import { TaskTime } from "./task-time"
 
 /** Panneau latéral de détail d'une tâche (ouvert via ?t=<id>). */
@@ -174,7 +174,7 @@ function TaskDetails({ task }: { task: Task }) {
         <section aria-label="Temps passé">
           <SectionTitle icon={Timer}>Temps passé</SectionTitle>
           <TaskTime task={task} profiles={new Map(profiles.map((p) => [p.id, p]))} />
-          <Timesheet tasks={[task]} profiles={profiles} className="mt-3" />
+          <TaskTimeDetails task={task} profiles={profiles} />
         </section>
         <BlockedEditor task={task} onSave={save} />
         <Separator />

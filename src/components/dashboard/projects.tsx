@@ -1,6 +1,6 @@
 "use client"
 
-import { FolderKanban, Plus, SearchIcon } from "lucide-react"
+import { Clock, FolderKanban, Plus, SearchIcon } from "lucide-react"
 import { useMemo, useState } from "react"
 import { EmptyState, ErrorState } from "@/components/empty-state"
 import { NativeSelect } from "@/components/native-select"
@@ -8,8 +8,9 @@ import { ShowMore } from "@/components/show-more"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
-import { normalize, PROJECT_STATUS_LABELS, type ProjectStatus } from "@/lib/domain"
+import { normalize, PROJECT_STATUS_LABELS, type ProjectStatus, type Task } from "@/lib/domain"
 import { useClients, useProfiles, useProjects, useTasks } from "@/lib/queries"
+import { formatDuration, totals } from "@/lib/time"
 import { ProjectProgress } from "./project-progress"
 import { ProjectWorkspace } from "./project-workspace"
 import { useDashboard } from "./state"
@@ -130,11 +131,12 @@ function ProjectList() {
                       <div className="mt-auto w-full space-y-2">
                         <ProjectProgress tasks={tasksByProject.get(project.id) ?? []} />
                         <div className="flex items-center justify-between gap-3">
-                          {project.due_date ? (
-                            <DueDate task={{ due_date: project.due_date, status: project.status === "done" ? "done" : "todo" }} />
-                          ) : (
-                            <span />
-                          )}
+                          <span className="flex flex-wrap items-center gap-3">
+                            {project.due_date && (
+                              <DueDate task={{ due_date: project.due_date, status: project.status === "done" ? "done" : "todo" }} />
+                            )}
+                            <ProjectTotal tasks={tasksByProject.get(project.id) ?? []} />
+                          </span>
                           <ul aria-label="Membres du projet" className="flex -space-x-1.5">
                             {profiles
                               .filter((p) => project.member_ids.includes(p.id))
@@ -155,5 +157,18 @@ function ProjectList() {
         </div>
       )}
     </div>
+  )
+}
+
+/** Temps de travail total d'un projet (toutes tâches et personnes confondues). */
+function ProjectTotal({ tasks }: { tasks: Task[] }) {
+  const { work } = totals(tasks.flatMap((t) => t.time_entries))
+  if (work === 0) return null
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" title="Temps de travail total">
+      <Clock className="size-3.5" aria-hidden />
+      <span className="sr-only">Temps total :</span>
+      {formatDuration(work)}
+    </span>
   )
 }

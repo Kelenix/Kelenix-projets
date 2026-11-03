@@ -1,7 +1,5 @@
 import type { TimeEntry } from "@/lib/domain"
 
-const DAY = 86_400_000
-
 const isWork = (e: TimeEntry) => e.kind !== "pause"
 
 /** Durée d'une session, éventuellement limitée à l'intervalle [from, to[. */
@@ -57,32 +55,89 @@ export function timeSince(entries: TimeEntry[], since: Date, now = Date.now()) {
   return entries.filter(isWork).reduce((sum, e) => sum + entryMs(e, now, since.getTime()), 0)
 }
 
-export type DailyRow = {
+/** Totaux d'un ensemble de sessions (une tâche, un projet) : travail et pauses, en ms. */
+export function totals(entries: TimeEntry[], now = Date.now()) {
+  let work = 0
+  let pause = 0
+  for (const e of entries) {
+    const ms = entryMs(e, now)
+    if (isWork(e)) work += ms
+    else pause += ms
+  }
+  return { work, pause }
+}
+
+export type Period = "day" | "week" | "month" | "year"
+export type Bucket = { start: Date; end: Date; label: string }
+
+const day = (y: number, m: number, d: number) => new Date(y, m, d)
+const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => d.toLocaleDateString("fr-FR", o)
+
+/**
+ * Colonnes d'une feuille de temps pour la période décalée de `offset` (0 = en cours) :
+ * jour → ce jour ; semaine → 7 jours ; mois → semaines du mois ; année → 12 mois.
+ */
+export function periodBuckets(period: Period, offset = 0, now = new Date()) {
+  const y = now.getFullYear()
+  const m = now.getMonth()
+  const d = now.getDate()
+  if (period === "day") {
+    const start = day(y, m, d + offset)
+    return { title: fmt(start, { weekday: "long", day: "numeric", month: "long", year: "numeric" }), buckets: [{ start, end: day(y, m, d + offset + 1), label: fmt(start, { weekday: "short", day: "2-digit" }) }] }
+  }
+  if (period === "week") {
+    const monday = day(y, m, d - ((now.getDay() + 6) % 7) + offset * 7)
+    const buckets = Array.from({ length: 7 }, (_, i) => {
+      const start = day(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)
+      return { start, end: day(start.getFullYear(), start.getMonth(), start.getDate() + 1), label: fmt(start, { weekday: "short", day: "2-digit" }) }
+    })
+    const title = `${fmt(buckets[0]!.start, { day: "numeric", month: "short" })} – ${fmt(buckets[6]!.start, { day: "numeric", month: "short", year: "numeric" })}`
+    return { title, buckets }
+  }
+  if (period === "month") {
+    const first = day(y, m + offset, 1)
+    const next = day(first.getFullYear(), first.getMonth() + 1, 1)
+    const buckets: Bucket[] = []
+    for (let start = first; start < next; ) {
+      const sunday = day(start.getFullYear(), start.getMonth(), start.getDate() + (7 - ((start.getDay() + 6) % 7)))
+      const end = sunday < next ? sunday : next
+      const last = day(end.getFullYear(), end.getMonth(), end.getDate() - 1)
+      buckets.push({ start, end, label: `${start.getDate()}–${last.getDate()}` })
+      start = end
+    }
+    return { title: fmt(first, { month: "long", year: "numeric" }), buckets }
+  }
+  const buckets = Array.from({ length: 12 }, (_, i) => {
+    const start = day(y + offset, i, 1)
+    return { start, end: day(y + offset, i + 1, 1), label: fmt(start, { month: "short" }) }
+  })
+  return { title: String(y + offset), buckets }
+}
+
+export type TimesheetRow = {
   userId: string
-  /** Temps de travail par jour (ms), dans l'ordre de `days`. */
-  perDay: number[]
+  /** Temps de travail par colonne (ms), dans l'ordre des colonnes. */
+  perBucket: number[]
   work: number
   pause: number
 }
 
 /**
- * Feuille de temps : travail par personne et par jour (minuit local), plus le total des pauses,
- * sur les jours donnés. Une session à cheval sur minuit est répartie sur les deux jours.
+ * Feuille de temps : travail par personne et par colonne (jours, semaines ou mois), plus le total
+ * des pauses. Une session à cheval sur deux colonnes est répartie entre elles.
  */
-export function dailyTimesheet(entries: TimeEntry[], days: Date[], now = Date.now()): DailyRow[] {
-  if (days.length === 0) return []
-  const from = days[0]!.getTime()
-  const to = days[days.length - 1]!.getTime() + DAY
-  const rows = new Map<string, DailyRow>()
+export function timesheet(entries: TimeEntry[], buckets: Bucket[], now = Date.now()): TimesheetRow[] {
+  if (buckets.length === 0) return []
+  const from = buckets[0]!.start.getTime()
+  const to = buckets[buckets.length - 1]!.end.getTime()
+  const rows = new Map<string, TimesheetRow>()
   for (const e of entries) {
     if (entryMs(e, now, from, to) === 0) continue
-    const row = rows.get(e.user_id) ?? { userId: e.user_id, perDay: days.map(() => 0), work: 0, pause: 0 }
-    days.forEach((day, i) => {
-      const start = day.getTime()
-      const end = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime()
-      const ms = entryMs(e, now, start, end)
+    const row = rows.get(e.user_id) ?? { userId: e.user_id, perBucket: buckets.map(() => 0), work: 0, pause: 0 }
+    buckets.forEach((b, i) => {
+      const ms = entryMs(e, now, b.start.getTime(), b.end.getTime())
       if (isWork(e)) {
-        row.perDay[i]! += ms
+        row.perBucket[i]! += ms
         row.work += ms
       } else {
         row.pause += ms
@@ -91,13 +146,6 @@ export function dailyTimesheet(entries: TimeEntry[], days: Date[], now = Date.no
     rows.set(e.user_id, row)
   }
   return [...rows.values()].sort((a, b) => b.work - a.work)
-}
-
-/** Les 7 jours (lundi → dimanche) de la semaine décalée de `offset` par rapport à la semaine courante. */
-export function weekDays(offset = 0, now = new Date()) {
-  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) + offset * 7)
-  return Array.from({ length: 7 }, (_, i) => new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i))
 }
 
 /** « 2 h 05 », « 12 min », « < 1 min » ; avec secondes pour une session en cours (« 12:04 »). */

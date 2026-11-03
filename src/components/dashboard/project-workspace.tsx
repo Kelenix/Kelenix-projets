@@ -12,7 +12,7 @@ import { ProjectProgress } from "./project-progress"
 import { useDashboard } from "./state"
 import { Assignee, ProjectStatusBadge } from "./tasks/task-meta"
 import { TaskViews } from "./tasks/task-views"
-import { Timesheet } from "./timesheet"
+import { ProjectTime } from "./time-sessions"
 
 /** Demande confirmation avant la clôture si des tâches restent ouvertes. */
 export function useConfirmClosure() {
@@ -159,10 +159,7 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
         />
       </section>
 
-      <section aria-labelledby="project-time" className="space-y-3">
-        <h2 id="project-time" className="text-base font-semibold">Temps passé</h2>
-        <Timesheet tasks={tasks} profiles={profiles} taskFilter />
-      </section>
+      <ProjectTime projectId={project.id} tasks={tasks} profiles={profiles} />
     </div>
   )
 }

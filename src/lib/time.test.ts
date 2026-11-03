@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { dailyTimesheet, formatDuration, timeByUser, timeSince, weekDays } from "./time"
+import { formatDuration, periodBuckets, timeByUser, timeSince, timesheet, totals } from "./time"
 
 const at = (min: number) => new Date(Date.UTC(2026, 10, 2, 9, min)).toISOString()
 const now = Date.parse(at(120))
@@ -33,33 +33,41 @@ describe("timeSince", () => {
   })
 })
 
-describe("dailyTimesheet", () => {
-  // Semaine du lundi 2 au dimanche 8 novembre 2026 (heure locale).
-  const days = weekDays(0, new Date(2026, 10, 4))
-  const local = (d: number, h: number, m = 0) => new Date(2026, 10, d, h, m).toISOString()
+describe("timesheet et périodes", () => {
+  const ref = new Date(2026, 10, 4) // mercredi 4 novembre 2026
+  const local = (d: number, h: number, m = 0, month = 10) => new Date(2026, month, d, h, m).toISOString()
+  const entries = [
+    { user_id: "a", started_at: local(2, 9), ended_at: local(2, 11), kind: "work" }, // lundi 2 h
+    { user_id: "a", started_at: local(2, 11), ended_at: local(2, 11, 15), kind: "pause" },
+    { user_id: "a", started_at: local(3, 14), ended_at: local(3, 18), kind: "work" }, // mardi 4 h
+    { user_id: "b", started_at: local(3, 23), ended_at: local(4, 1), kind: "work" }, // à cheval sur minuit
+    { user_id: "a", started_at: local(10, 9), ended_at: local(10, 10), kind: "work" }, // semaine suivante
+    { user_id: "a", started_at: local(15, 9, 0, 0), ended_at: local(15, 12, 0, 0), kind: "work" }, // janvier 3 h
+  ]
+  const hours = (ms: number) => ms / 3_600_000
+  const at = Date.parse(local(20, 0))
 
-  it("répartit le travail par personne et par jour, pauses totalisées à part", () => {
-    const rows = dailyTimesheet(
-      [
-        { user_id: "a", started_at: local(2, 9), ended_at: local(2, 11), kind: "work" }, // lundi 2 h
-        { user_id: "a", started_at: local(2, 11), ended_at: local(2, 11, 15), kind: "pause" },
-        { user_id: "a", started_at: local(3, 14), ended_at: local(3, 18), kind: "work" }, // mardi 4 h
-        { user_id: "b", started_at: local(3, 23), ended_at: local(4, 1), kind: "work" }, // à cheval sur minuit
-        { user_id: "a", started_at: local(10, 9), ended_at: local(10, 10), kind: "work" }, // semaine suivante
-      ],
-      days,
-      Date.parse(local(9, 0))
-    )
-    const hours = (ms: number) => ms / 3_600_000
+  it("semaine : travail par personne et par jour, pauses à part", () => {
+    const { buckets } = periodBuckets("week", 0, ref)
+    expect(buckets[0]!.start.getDay()).toBe(1)
+    const rows = timesheet(entries, buckets, at)
     expect(rows[0]).toMatchObject({ userId: "a", pause: 15 * 60_000 })
-    expect(rows[0]!.perDay.map(hours)).toEqual([2, 4, 0, 0, 0, 0, 0])
-    expect(rows[1]!.perDay.map(hours)).toEqual([0, 1, 1, 0, 0, 0, 0])
+    expect(rows[0]!.perBucket.map(hours)).toEqual([2, 4, 0, 0, 0, 0, 0])
+    expect(rows[1]!.perBucket.map(hours)).toEqual([0, 1, 1, 0, 0, 0, 0])
   })
 
-  it("weekDays : lundi → dimanche, décalable", () => {
-    expect(days[0]!.getDay()).toBe(1)
-    expect(days[6]!.getDay()).toBe(0)
-    expect(weekDays(-1, new Date(2026, 10, 4))[0]!.getDate()).toBe(26)
+  it("jour, mois (par semaines) et année (par mois)", () => {
+    expect(timesheet(entries, periodBuckets("day", -1, ref).buckets, at)[0]!.work).toBe(4 * 3_600_000)
+    const month = periodBuckets("month", 0, ref)
+    expect(month.buckets.map((b) => b.label)).toEqual(["1–1", "2–8", "9–15", "16–22", "23–29", "30–30"])
+    expect(timesheet(entries, month.buckets, at).find((r) => r.userId === "a")!.perBucket.map(hours)).toEqual([0, 6, 1, 0, 0, 0])
+    const year = timesheet(entries, periodBuckets("year", 0, ref).buckets, at).find((r) => r.userId === "a")!
+    expect(year.perBucket.map(hours)).toEqual([3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7, 0])
+    expect(periodBuckets("week", -1, ref).buckets[0]!.start.getDate()).toBe(26)
+  })
+
+  it("totals : travail et pauses d'une tâche ou d'un projet", () => {
+    expect(totals(entries, at)).toEqual({ work: 12 * 3_600_000, pause: 15 * 60_000 })
   })
 })
 

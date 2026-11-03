@@ -337,26 +337,35 @@ export type Database = {
       }
       time_entries: {
         Row: {
+          description: string | null
+          edited_at: string | null
           ended_at: string | null
           id: string
           kind: string
+          source: string
           started_at: string
           task_id: string
           user_id: string
         }
         ComputedFields: never
         Insert: {
+          description?: string | null
+          edited_at?: string | null
           ended_at?: string | null
           id?: string
           kind?: string
+          source?: string
           started_at?: string
           task_id: string
           user_id?: string
         }
         Update: {
+          description?: string | null
+          edited_at?: string | null
           ended_at?: string | null
           id?: string
           kind?: string
+          source?: string
           started_at?: string
           task_id?: string
           user_id?: string
@@ -378,6 +387,68 @@ export type Database = {
           },
         ]
       }
+      time_entry_changes: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          entry_id: string
+          id: string
+          new_ended_at: string
+          new_started_at: string
+          old_ended_at: string
+          old_started_at: string
+          reason: string
+          task_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          entry_id: string
+          id?: string
+          new_ended_at: string
+          new_started_at: string
+          old_ended_at: string
+          old_started_at: string
+          reason: string
+          task_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          entry_id?: string
+          id?: string
+          new_ended_at?: string
+          new_started_at?: string
+          old_ended_at?: string
+          old_started_at?: string
+          reason?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_entry_changes_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entry_changes_entry_id_fkey"
+            columns: ["entry_id"]
+            isOneToOne: false
+            referencedRelation: "time_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entry_changes_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -385,9 +456,22 @@ export type Database = {
     Functions: {
       can_access_project: { Args: { p_project_id: string }; Returns: boolean }
       can_access_task: { Args: { p_task_id: string }; Returns: boolean }
+      check_time_range: {
+        Args: { p_ended_at: string; p_ignore: string; p_started_at: string; p_user: string }
+        Returns: undefined
+      }
+      edit_time_entry: {
+        Args: { p_ended_at: string; p_id: string; p_reason: string; p_started_at: string }
+        Returns: undefined
+      }
       is_owner: { Args: Record<PropertyKey, never>; Returns: boolean }
+      log_time: {
+        Args: { p_description: string; p_ended_at: string; p_started_at: string; p_task_id: string }
+        Returns: string
+      }
       pause_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
       resume_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
+      set_time_entry_description: { Args: { p_description: string; p_id: string }; Returns: undefined }
       start_timer: { Args: { p_task_id: string }; Returns: undefined }
       stop_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
     }
