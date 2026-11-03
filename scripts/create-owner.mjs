@@ -1,7 +1,7 @@
 // Crée un compte propriétaire (aucune inscription publique n'existe).
 // Usage : pnpm create-owner [--if-missing] <email> "<Nom complet>"
 //   --if-missing : ne fait rien s'il existe déjà un propriétaire (utilisé au déploiement).
-// Variables : NEXT_PUBLIC_SUPABASE_URL (ou SUPABASE_INTERNAL_URL), SUPABASE_SERVICE_ROLE_KEY,
+// Variables : SUPABASE_URL (ou NEXT_PUBLIC_SUPABASE_URL en local), SUPABASE_SERVICE_ROLE_KEY,
 // KELENIX_OWNER_PASSWORD (facultatif ; sinon un mot de passe provisoire est généré et affiché une fois).
 // Sans dépendance : appels HTTP directs (utilisable dans l'image Docker de production).
 import { randomBytes } from "node:crypto"
@@ -9,7 +9,7 @@ import { randomBytes } from "node:crypto"
 const args = process.argv.slice(2)
 const ifMissing = args.includes("--if-missing")
 const [email, fullName] = args.filter((a) => a !== "--if-missing")
-const url = process.env.SUPABASE_INTERNAL_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
+const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 function fail(message) {

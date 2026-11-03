@@ -1,5 +1,6 @@
 {
-	email {$ACME_EMAIL:admin@example.com}
+	admin off
+	auto_https off
 }
 
 (routes) {
@@ -14,9 +15,9 @@
 	}
 }
 
-# Adresse publique : HTTPS automatique (Let's Encrypt). L'administration des comptes n'est
-# jamais exposée publiquement, même avec une clé valide. « route » garde l'ordre écrit.
-{$SITE_ADDRESS} {
+# Entrée publique (via le nginx du serveur) : l'administration des comptes n'est jamais exposée,
+# même avec une clé valide. « route » garde l'ordre écrit.
+:8000 {
 	encode zstd gzip
 	header -Server
 	route {
@@ -25,7 +26,7 @@
 	}
 }
 
-# Passerelle interne (réseau Docker uniquement, port non publié) pour les appels serveur.
-http://:8000 {
+# Entrée interne (réseau Docker uniquement, port non publié) pour les appels du serveur Next.js.
+:8001 {
 	import routes
 }

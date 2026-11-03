@@ -1,0 +1,34 @@
+name: Accès VPS et envoi de la version
+description: Configure SSH avec la clé de déploiement et copie la version conservée (fichiers de déploiement et migrations) dans /opt/kelenix.
+inputs:
+  host:
+    required: true
+  user:
+    required: true
+  ssh-key:
+    required: true
+  release-dir:
+    description: Dossier de l'artefact « release » téléchargé
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Clé SSH
+      shell: bash
+      env:
+        SSH_KEY: ${{ inputs.ssh-key }}
+      run: |
+        install -m 700 -d ~/.ssh
+        printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+        chmod 600 ~/.ssh/id_ed25519
+        ssh-keyscan -T 15 -H "${{ inputs.host }}" >> ~/.ssh/known_hosts 2>/dev/null
+        echo "SSH_TARGET=${{ inputs.user }}@${{ inputs.host }}" >> "$GITHUB_ENV"
+    - name: Envoi des fichiers
+      shell: bash
+      working-directory: ${{ inputs.release-dir }}
+      run: |
+        ssh "$SSH_TARGET" 'mkdir -p /opt/kelenix/migrations /opt/kelenix/db'
+        scp -q deploy/docker-compose.yml deploy/Caddyfile deploy/*.sh "$SSH_TARGET":/opt/kelenix/
+        scp -q deploy/db/post-init.sql "$SSH_TARGET":/opt/kelenix/db/
+        scp -q supabase/migrations/*.sql "$SSH_TARGET":/opt/kelenix/migrations/
+        ssh "$SSH_TARGET" 'chmod 700 /opt/kelenix && chmod +x /opt/kelenix/*.sh'

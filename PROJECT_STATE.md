@@ -19,7 +19,7 @@
 | 3 — Architecture & design   | ✅ fait | `docs/architecture.md`, ADR-001 à 008 |
 | 4 — Implémentation          | ✅ fait | Toutes les exigences de l'INTAKE |
 | 5 — Qualité                 | ✅ fait | Lint, types, 25 tests unitaires, 22 tests RLS, 8 tests e2e, build prod |
-| 6 — Mise en production      | 🔄 en cours | Pipeline VPS prêt et testé en local ; attend clé SSH, DNS, `DOMAIN`/`VPS_HOST` (`docs/manual-tasks.md`) |
+| 6 — Mise en production      | 🔄 en cours | Pipeline 8 étapes prêt (préprod + prod testées en local) ; attend clé SSH dans hPanel et DNS A `@` → 69.62.116.243 |
 | 7 — Documentation           | ✅ fait | README, architecture, déploiement, tâches manuelles |
 | 8 — Maintenance             | ⬜ à faire | |
 
@@ -59,6 +59,7 @@
 
 ## Journal de session
 
+- 2026-11-03 — Pipeline en 8 étapes (préproduction temporaire testée puis production), image unique, publication via le nginx existant du VPS sans toucher aux autres services ; domaine kelenix.tech.
 - 2026-11-02 — Audit de sécurité (historique non falsifiable, route admin bloquée, en-têtes, dépendances), pile Docker de production testée en local, CI/CD GitHub Actions vers VPS.
 - 2026-11-02 — Jeu de démo complet (`seed-demo.sql`) et données de volume (120 projets, `seed-volume.sql`) ; listes paginées et affichées par paquets ; contenu pleine largeur.
 - 2026-11-02 — Statut « Reprogrammé », colonnes colorées, nom « Kelenix Projets », chronomètre par intervenant (temps visible sur les cartes et dans les statistiques), membres affichés sur les cartes projet.

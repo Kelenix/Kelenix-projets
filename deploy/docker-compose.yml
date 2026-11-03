@@ -1,7 +1,7 @@
-# Production Kelenix sur un VPS : base Supabase auto-hébergée + application + HTTPS (Caddy).
-# Les variables viennent de deploy/.env, écrit par GitHub Actions (voir .github/workflows/ci.yml).
+# Un environnement Kelenix (préproduction ou production) sur le VPS : base Supabase auto-hébergée,
+# application et passerelle. Lancé avec « docker compose -p kelenix-<env> --env-file .env.<env> ».
+# Aucun port public : la passerelle n'écoute que sur 127.0.0.1, le nginx du serveur fait le HTTPS.
 # Versions identiques à la pile locale de la Supabase CLI.
-name: kelenix
 
 services:
   db:
@@ -87,11 +87,10 @@ services:
       rest:
         condition: service_started
     environment:
-      NEXT_PUBLIC_SUPABASE_URL: ${PUBLIC_URL}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${ANON_KEY:?}
+      # Appels serveur par la passerelle interne (réseau Docker, administration autorisée).
+      SUPABASE_URL: http://gateway:8001
+      SUPABASE_ANON_KEY: ${ANON_KEY:?}
       SUPABASE_SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY:?}
-      # Appels d'administration par le réseau interne (route bloquée côté public).
-      SUPABASE_INTERNAL_URL: http://gateway:8000
 
   gateway:
     image: caddy:2.10-alpine
@@ -99,25 +98,20 @@ services:
     depends_on:
       - app
     ports:
-      - "${HTTP_PORT:-80}:80"
-      - "${HTTPS_PORT:-443}:443"
-      - "${HTTPS_PORT:-443}:443/udp"
-    environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:?}
-      ACME_EMAIL: ${ADMIN_EMAIL:-}
+      # Uniquement sur la boucle locale : seul le nginx du serveur peut l'atteindre.
+      - "127.0.0.1:${GATEWAY_PORT:?}:8000"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    networks:
-      default:
-        # Le serveur Next.js joint l'adresse publique directement via la passerelle.
-        aliases:
-          - ${DOMAIN:?}
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:8000/auth/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   backup:
     image: postgres:17-alpine
     restart: unless-stopped
+    profiles: ["backup"]
     depends_on:
       db:
         condition: service_healthy
@@ -137,5 +131,3 @@ services:
 
 volumes:
   db-data:
-  caddy-data:
-  caddy-config:

@@ -1,12 +1,13 @@
 import { createBrowserClient } from "@supabase/ssr"
 import type { Database } from "@/lib/database.types"
+import { AUTH_COOKIE, browserConfig } from "./config"
 
 let client: ReturnType<typeof createBrowserClient<Database>> | undefined
 
 export function getSupabase() {
-  client ??= createBrowserClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  if (!client) {
+    const { url, anonKey } = browserConfig()
+    client = createBrowserClient<Database>(url, anonKey, { cookieOptions: { name: AUTH_COOKIE } })
+  }
   return client
 }

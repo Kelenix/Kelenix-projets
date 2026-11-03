@@ -5,6 +5,20 @@
 
 ---
 
+## ADR-014 — Pipeline en 8 étapes, image unique, cohabitation avec le nginx du VPS
+
+- **Date** : 2026-11-03
+- **Statut** : Accepté (remplace la partie « exposition » d'ADR-013)
+- **Décideur** : Claude (rôles : devops-engineer, release-manager)
+- **Contexte** : L'utilisateur impose un pipeline en 8 étapes (dont préproduction testée avant production) et le domaine `kelenix.tech`. Le VPS héberge déjà nginx (ports 80/443) et d'autres services (3000, 3001, 3002…) à ne pas perturber ; la mémoire est déjà occupée à 64 %.
+- **Décision** :
+  - Image Docker **unique** sans configuration d'environnement (adresse et clé publique lues au démarrage, cookie de session à nom fixe) : la même image est testée en préproduction puis promue en production.
+  - Préproduction **temporaire** sur le VPS (projet Docker `kelenix-preprod`, base vierge, secrets jetables, compte de test), testée dans un navigateur via tunnel SSH, puis supprimée.
+  - Exposition par le **nginx existant** : un seul fichier de site, refus si le domaine est déjà déclaré, retour arrière si `nginx -t` échoue ; HTTPS par certbot (webroot). Passerelles Kelenix sur `127.0.0.1:18080/18081` seulement, avec contrôle que le port n'est pas pris. Pare-feu non modifié.
+- **Alternatives écartées** : Caddy sur 80/443 (conflit avec nginx) ; préproduction permanente (mémoire, DNS en plus) ; image construite par environnement (ce qui est testé ne serait pas ce qui est déployé).
+- **Conséquences** : La préproduction ne teste pas les migrations sur une copie des données de production (base vierge) ; à envisager si le schéma évolue fortement.
+- **Impact** : technique / exploitation
+
 ## ADR-013 — Hébergement sur VPS : Supabase auto-hébergé, déploiement continu
 
 - **Date** : 2026-11-02

@@ -1,8 +1,11 @@
-# Intégration et déploiement continus.
-# Chaque push sur main : contrôles → tests base + bout en bout → image Docker → déploiement VPS.
-# Le déploiement démarre dès que les variables DOMAIN et VPS_HOST du dépôt sont renseignées.
+# Intégration et déploiement continus de Kelenix Projets, en 8 étapes :
+#   1. Déclenchement      2. Préparation       3. Vérification du code
+#   4. Build              5. Conservation      6. Préproduction et tests
+#   7. Production         8. Vérification après déploiement
+# Une seule image est construite puis promue de la préproduction à la production.
 name: CI / CD
 
+# 1 · Déclenchement : chaque push sur main (déploiement), chaque pull request (vérification), ou à la main.
 on:
   push:
     branches: [main]
@@ -16,33 +19,93 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  NODE_VERSION: 24
+
 jobs:
-  checks:
-    name: Lint, types, tests unitaires
+  # 2 · Récupérer le code et préparer l'environnement
+  prepare:
+    name: "2 · Préparation"
     runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.release.outputs.image }}
+      deploy: ${{ steps.target.outputs.deploy }}
+      dns: ${{ steps.target.outputs.dns }}
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Dépendances (mises en cache pour les étapes suivantes)
+        run: pnpm install --frozen-lockfile
+      - id: release
+        name: Identifiant de la version
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - id: target
+        name: Cible de déploiement disponible ?
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          HOST: ${{ vars.VPS_HOST }}
+          DOMAIN: ${{ vars.DOMAIN }}
+        run: |
+          deploy=false dns=false
+          if [ "$GITHUB_REF" != refs/heads/main ] || [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            echo "::notice::Vérification seule (pas de déploiement hors de main)."
+          elif [ -z "$HOST" ] || [ -z "$DOMAIN" ] || [ -z "$VPS_SSH_KEY" ]; then
+            echo "::warning::Variables VPS_HOST / DOMAIN ou secret VPS_SSH_KEY manquants : déploiement ignoré."
+          else
+            install -m 700 -d ~/.ssh
+            printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+            if ssh -o BatchMode=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=accept-new \
+                "${{ vars.VPS_USER || 'root' }}@$HOST" true 2>/dev/null; then
+              deploy=true
+            else
+              echo "::warning::Connexion SSH refusée par $HOST : ajoutez la clé de déploiement dans hPanel (voir docs/manual-tasks.md). Déploiement ignoré."
+            fi
+            if [ "$(getent ahostsv4 "$DOMAIN" | awk 'NR==1 {print $1}')" = "$HOST" ]; then
+              dns=true
+            else
+              echo "::warning::$DOMAIN ne pointe pas encore vers $HOST (enregistrement DNS A) : la production attendra."
+            fi
+            rm -f ~/.ssh/id_ed25519
+          fi
+          echo "deploy=$deploy" >> "$GITHUB_OUTPUT"
+          echo "dns=$dns" >> "$GITHUB_OUTPUT"
+
+  # 3 · Vérifier le code (deux contrôles en parallèle)
+  quality:
+    name: "3 · Vérification — qualité du code"
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm lint
-      - run: pnpm typecheck
-      - run: pnpm test
-      - run: pnpm audit --prod
+      - name: Lint
+        run: pnpm lint
+      - name: Types
+        run: pnpm typecheck
+      - name: Tests unitaires
+        run: pnpm test
+      - name: Audit des dépendances de production
+        run: pnpm audit --prod
 
-  database-and-e2e:
-    name: Sécurité de la base et parcours complets
+  tests:
+    name: "3 · Vérification — sécurité de la base et parcours"
     runs-on: ubuntu-latest
-    needs: checks
+    needs: prepare
     steps:
       - uses: actions/checkout@v5
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v5
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Supabase local (migrations + données de démonstration)
@@ -59,74 +122,137 @@ jobs:
             echo "SUPABASE_SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
           } > .env.local
       - run: pnpm exec playwright install --with-deps chromium
-      - name: Tests de bout en bout
+      - name: Parcours complets (navigateur)
         run: pnpm test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: playwright-report
+          name: rapport-tests
           path: test-results/
 
-  image:
-    name: Image Docker
+  # 4 · Construire la version à déployer  +  5 · Conserver le résultat du build
+  build:
+    name: "4-5 · Build et conservation"
     runs-on: ubuntu-latest
-    needs: [checks, database-and-e2e]
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DOMAIN != '' && vars.VPS_HOST != ''
+    needs: [prepare, quality, tests]
+    if: needs.prepare.outputs.deploy == 'true'
     permissions:
       contents: read
       packages: write
-    outputs:
-      image: ${{ steps.name.outputs.image }}
     steps:
       - uses: actions/checkout@v5
-      - id: name
-        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - name: Image Docker (unique, sans configuration d'environnement)
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
-          tags: ${{ steps.name.outputs.image }}
-          build-args: |
-            NEXT_PUBLIC_SUPABASE_URL=https://${{ vars.DOMAIN }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.ANON_KEY }}
+          tags: ${{ needs.prepare.outputs.image }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Paquet de déploiement
+        run: |
+          mkdir -p release
+          cp -r deploy release/
+          mkdir -p release/supabase && cp -r supabase/migrations release/supabase/
+          echo "${{ needs.prepare.outputs.image }}" > release/IMAGE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release
+          path: release/
+          retention-days: 30
 
-  deploy:
-    name: Déploiement sur le VPS
+  # 6 · Déployer en préproduction et tester (environnement temporaire sur le VPS)
+  preprod:
+    name: "6 · Préproduction et tests"
     runs-on: ubuntu-latest
-    needs: image
-    permissions:
-      contents: read
-      packages: read
+    needs: [prepare, build]
     concurrency:
-      group: deploy-production
+      group: vps-deploy
       cancel-in-progress: false
     env:
-      SSH_TARGET: ${{ vars.VPS_USER || 'root' }}@${{ vars.VPS_HOST }}
+      PORT: 18081
     steps:
       - uses: actions/checkout@v5
-      - name: Accès SSH
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+      - uses: ./.github/actions/vps-upload
+        with:
+          host: ${{ vars.VPS_HOST }}
+          user: ${{ vars.VPS_USER || 'root' }}
+          ssh-key: ${{ secrets.VPS_SSH_KEY }}
+          release-dir: release
+      - name: Configuration temporaire (secrets jetables)
+        run: |
+          node scripts/generate-secrets.mjs > preprod.secrets
+          SMOKE_PASSWORD=$(openssl rand -base64 18 | tr -d '/+=')
+          echo "::add-mask::$SMOKE_PASSWORD"
+          echo "SMOKE_PASSWORD=$SMOKE_PASSWORD" >> "$GITHUB_ENV"
+          {
+            grep -E '^(POSTGRES_PASSWORD|JWT_SECRET|ANON_KEY|SERVICE_ROLE_KEY)=' preprod.secrets
+            echo "PUBLIC_URL=http://localhost:$PORT"
+            echo "GATEWAY_PORT=$PORT"
+            echo "APP_IMAGE=$(cat release/IMAGE)"
+            echo "SMOKE_EMAIL=preprod@kelenix.test"
+            echo "SMOKE_PASSWORD=$SMOKE_PASSWORD"
+          } | ssh "$SSH_TARGET" 'umask 077 && cat > /opt/kelenix/.env.preprod'
+          rm -f preprod.secrets
+      - name: Déploiement en préproduction
+        run: printf '%s\n' "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" | ssh "$SSH_TARGET" 'bash /opt/kelenix/deploy.sh preprod'
+      - name: Tests de la préproduction (navigateur, via tunnel SSH)
         env:
-          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          PLAYWRIGHT_BASE_URL: http://localhost:${{ env.PORT }}
+          SMOKE_EMAIL: preprod@kelenix.test
         run: |
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -T 15 -H "${{ vars.VPS_HOST }}" >> ~/.ssh/known_hosts
-      - name: Copie des fichiers de déploiement
-        run: |
-          ssh "$SSH_TARGET" 'mkdir -p /opt/kelenix/migrations /opt/kelenix/db'
-          scp -q deploy/docker-compose.yml deploy/Caddyfile deploy/deploy.sh deploy/migrate.sh "$SSH_TARGET":/opt/kelenix/
-          scp -q deploy/db/post-init.sql "$SSH_TARGET":/opt/kelenix/db/
-          scp -q supabase/migrations/*.sql "$SSH_TARGET":/opt/kelenix/migrations/
-          ssh "$SSH_TARGET" 'chmod +x /opt/kelenix/deploy.sh /opt/kelenix/migrate.sh'
+          ssh -f -N -o ExitOnForwardFailure=yes -L "$PORT:127.0.0.1:$PORT" "$SSH_TARGET"
+          pnpm exec playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: rapport-preproduction
+          path: test-results/
+      - name: Suppression de la préproduction
+        if: always()
+        run: ssh "$SSH_TARGET" 'bash /opt/kelenix/teardown.sh' || true
+
+  # 7 · Déployer en production (la même image, validée en préproduction)
+  production:
+    name: "7 · Production"
+    runs-on: ubuntu-latest
+    needs: [prepare, build, preprod]
+    if: needs.prepare.outputs.dns == 'true'
+    environment:
+      name: production
+      url: https://${{ vars.DOMAIN }}
+    concurrency:
+      group: vps-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: release
+      - uses: ./.github/actions/vps-upload
+        with:
+          host: ${{ vars.VPS_HOST }}
+          user: ${{ vars.VPS_USER || 'root' }}
+          ssh-key: ${{ secrets.VPS_SSH_KEY }}
+          release-dir: release
       - name: Configuration de production
         env:
           POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
@@ -137,9 +263,11 @@ jobs:
         run: |
           {
             echo "DOMAIN=${{ vars.DOMAIN }}"
-            echo "SITE_ADDRESS=${{ vars.DOMAIN }}"
             echo "PUBLIC_URL=https://${{ vars.DOMAIN }}"
-            echo "APP_IMAGE=${{ needs.image.outputs.image }}"
+            echo "SERVER_IP=${{ vars.VPS_HOST }}"
+            echo "GATEWAY_PORT=18080"
+            echo "COMPOSE_PROFILES=backup"
+            echo "APP_IMAGE=$(cat release/IMAGE)"
             echo "ADMIN_EMAIL=${{ vars.ADMIN_EMAIL }}"
             echo "ADMIN_NAME='${{ vars.ADMIN_NAME || 'Propriétaire' }}'"
             echo "ADMIN_PASSWORD=$ADMIN_PASSWORD"
@@ -147,16 +275,28 @@ jobs:
             echo "JWT_SECRET=$JWT_SECRET"
             echo "ANON_KEY=$ANON_KEY"
             echo "SERVICE_ROLE_KEY=$SERVICE_ROLE_KEY"
-          } | ssh "$SSH_TARGET" 'umask 077 && cat > /opt/kelenix/.env'
-      - name: Déploiement
+          } | ssh "$SSH_TARGET" 'umask 077 && cat > /opt/kelenix/.env.prod'
+      - name: Déploiement en production
+        run: printf '%s\n' "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" | ssh "$SSH_TARGET" 'bash /opt/kelenix/deploy.sh prod'
+
+  # 8 · Vérifier après déploiement
+  verify:
+    name: "8 · Vérification après déploiement"
+    runs-on: ubuntu-latest
+    needs: production
+    steps:
+      - name: Contrôles de la production
+        env:
+          URL: https://${{ vars.DOMAIN }}
         run: |
-          # Jeton de lecture du registre transmis par l'entrée standard (jamais écrit sur disque).
-          printf '%s\n' "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" | ssh "$SSH_TARGET" 'bash /opt/kelenix/deploy.sh'
-      - name: Vérification
-        run: |
-          for i in $(seq 1 20); do
-            if curl -fsS -o /dev/null "https://${{ vars.DOMAIN }}/login"; then echo "En ligne : https://${{ vars.DOMAIN }}"; exit 0; fi
-            sleep 15
-          done
-          echo "::error::https://${{ vars.DOMAIN }} ne répond pas (vérifiez l'enregistrement DNS de type A vers ${{ vars.VPS_HOST }})."
-          exit 1
+          check() { if eval "$2"; then echo "✓ $1"; else echo "::error::✗ $1"; failed=1; fi; }
+          for i in $(seq 1 20); do curl -fsS -o /dev/null "$URL/login" && break; sleep 15; done
+          failed=0
+          check "Page de connexion en HTTPS (certificat valide)" '[ "$(curl -s -o /dev/null -w "%{http_code}" "$URL/login")" = 200 ]'
+          check "HTTP redirigé vers HTTPS" '[ "$(curl -s -o /dev/null -w "%{http_code}" "http://${{ vars.DOMAIN }}/login")" = 301 ]'
+          check "En-têtes de sécurité" 'curl -sI "$URL/login" | grep -qi "content-security-policy"'
+          check "Accès sans session redirigé vers la connexion" '[ "$(curl -s -o /dev/null -w "%{redirect_url}" "$URL/")" = "$URL/login" ]'
+          check "Administration des comptes bloquée" '[ "$(curl -s -o /dev/null -w "%{http_code}" "$URL/auth/v1/admin/users")" = 404 ]'
+          check "Inscription publique fermée" '[ "$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Content-Type: application/json" -d "{\"email\":\"x@y.test\",\"password\":\"Intrus-12345\"}" "$URL/auth/v1/signup")" = 422 ]'
+          check "Authentification en service" '[ "$(curl -s -o /dev/null -w "%{http_code}" "$URL/auth/v1/health")" = 200 ]'
+          exit $failed

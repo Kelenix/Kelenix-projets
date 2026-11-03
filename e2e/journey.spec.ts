@@ -22,6 +22,8 @@ test("connexion : identifiants incorrects et affichage du mot de passe", async (
 })
 
 test("parcours complet du propriétaire", async ({ page }) => {
+  // Parcours long (une vingtaine d'actions) : marge pour les bases chargées de données de volume.
+  test.setTimeout(120_000)
   const id = Date.now().toString(36)
   const clientName = `Client E2E ${id}`
   const projectName = `Projet E2E ${id}`

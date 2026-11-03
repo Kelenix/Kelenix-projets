@@ -4,8 +4,9 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# PROJECT et ENV_FILE sont fournis par deploy.sh (ex. kelenix-prod et .env.prod).
 psql() {
-  docker compose --env-file .env exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" db \
+  docker compose -p "$PROJECT" --env-file "$ENV_FILE" exec -T -e PGPASSWORD="$POSTGRES_PASSWORD" db \
     psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -q "$@"
 }
 

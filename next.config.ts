@@ -1,8 +1,9 @@
 import type { NextConfig } from "next"
 
 const isDev = process.env.NODE_ENV !== "production"
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""
-const supabaseWs = supabaseUrl.replace(/^http/, "ws")
+// Image de production : API servie sur la même origine (« self »). En local et en CI,
+// NEXT_PUBLIC_SUPABASE_URL désigne le Supabase local, autorisé en plus.
+const localApi = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ""
 
 // Politique de sécurité du contenu : seules l'application et l'API Supabase sont autorisées.
 const csp = [
@@ -11,12 +12,11 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  `connect-src 'self' ${supabaseUrl} ${supabaseWs}`.trim(),
+  `connect-src 'self' ${localApi} ${localApi.replace(/^http/, "ws")}`.trim(),
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
   "object-src 'none'",
-  ...(isDev ? [] : ["upgrade-insecure-requests"]),
 ].join("; ")
 
 const securityHeaders = [
