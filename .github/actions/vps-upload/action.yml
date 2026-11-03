@@ -21,7 +21,16 @@ runs:
         install -m 700 -d ~/.ssh
         printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
         chmod 600 ~/.ssh/id_ed25519
-        ssh-keyscan -T 15 -H "${{ inputs.host }}" >> ~/.ssh/known_hosts 2>/dev/null
+        # Plusieurs essais : un serveur saturé peut mettre du temps à répondre.
+        for i in 1 2 3 4 5; do
+          ssh-keyscan -T 20 -H "${{ inputs.host }}" >> ~/.ssh/known_hosts 2>/dev/null && break
+          if [ "$i" = 5 ]; then
+            echo "::error::Serveur ${{ inputs.host }} injoignable en SSH après 5 essais (serveur arrêté ou saturé). Rien n'a été modifié sur le serveur."
+            exit 1
+          fi
+          echo "Serveur injoignable (essai $i/5), nouvel essai dans 30 s…"
+          sleep 30
+        done
         echo "SSH_TARGET=${{ inputs.user }}@${{ inputs.host }}" >> "$GITHUB_ENV"
     - name: Envoi des fichiers
       shell: bash
