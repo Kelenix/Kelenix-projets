@@ -96,10 +96,10 @@ test("parcours complet du propriétaire", async ({ page }) => {
   await expect(page.getByRole("region", { name: /^En cours/ }).getByText("Rédiger le cahier de recette")).toBeVisible()
   // Checklist cochée directement depuis la carte, sans ouvrir la tâche
   const recipeCard = page.locator('[aria-roledescription="tâche déplaçable"]', { hasText: "Rédiger le cahier de recette" })
-  await expect(recipeCard).toContainText("Checklist :0/1")
-  await recipeCard.getByRole("button", { name: /^Checklist 0 sur 1/ }).click()
+  // La checklist est affichée en clair sur la carte.
+  await expect(recipeCard).toContainText("Checklist0/1")
   await recipeCard.getByRole("checkbox", { name: "Lister les cas de test" }).click()
-  await expect(recipeCard).toContainText("Checklist :1/1")
+  await expect(recipeCard).toContainText("Checklist1/1")
   await expect(page.getByRole("dialog")).toHaveCount(0)
 
   // Chronomètre démarré puis mis en pause depuis la carte : l'intervenant et son temps restent affichés

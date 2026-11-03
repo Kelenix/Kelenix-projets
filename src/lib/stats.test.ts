@@ -19,6 +19,8 @@ const task = (over: Partial<Task>): Task => ({
   completed_at: null,
   checklist: [],
   assignees: [],
+  comment_count: 0,
+  link_count: 0,
   time_entries: [],
   ...over,
 })

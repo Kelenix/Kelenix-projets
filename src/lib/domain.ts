@@ -10,7 +10,14 @@ export type TimeEntry = Pick<Tables<"time_entries">, "user_id" | "started_at" | 
 /** Collaborateur affecté à une tâche, avec son temps estimé (minutes). */
 export type Assignment = Pick<Tables<"task_assignees">, "user_id" | "estimated_minutes">
 /** Tâche avec sa checklist, ses collaborateurs affectés et le temps passé, visibles sur les cartes. */
-export type Task = Tables<"tasks"> & { checklist: ChecklistItem[]; assignees: Assignment[]; time_entries: TimeEntry[] }
+export type Task = Tables<"tasks"> & {
+  checklist: ChecklistItem[]
+  assignees: Assignment[]
+  time_entries: TimeEntry[]
+  /** Nombre de commentaires et de liens (affichés sur la carte). */
+  comment_count: number
+  link_count: number
+}
 export type ProjectStatus = Enums<"project_status">
 export type TaskStatus = Enums<"task_status">
 export type TaskPriority = Enums<"task_priority">

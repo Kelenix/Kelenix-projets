@@ -23,16 +23,12 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   TASK_PRIORITIES,
   TASK_PRIORITY_LABELS,
-  TASK_STATUS_LABELS,
-  TASK_STATUSES,
   type Profile,
   type Task,
   type TaskPriority,
-  type TaskStatus,
 } from "@/lib/domain"
 import { useAddTaskItem, useDeleteTask, useProjects, useSetAssigned, useUpdateTask } from "@/lib/queries"
-import { cn } from "@/lib/utils"
-import { AssigneeStack, DueDate, PriorityBadge, TaskStatusBadge } from "./task-meta"
+import { AssigneeStack, DueDate, PriorityBadge } from "./task-meta"
 
 /**
  * Empêche le glisser-déposer de la carte de démarrer depuis ces contrôles, y compris depuis les
@@ -45,31 +41,6 @@ export const isolate = {
 
 const trigger =
   "relative z-10 cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-ring/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-
-/** Pastille de statut cliquable : change le statut sans ouvrir la tâche. */
-export function StatusMenu({ task }: { task: Task }) {
-  const updateTask = useUpdateTask()
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger {...isolate} aria-label={`Statut de « ${task.title} » : ${TASK_STATUS_LABELS[task.status]}`} className={cn(trigger, "shrink-0")}>
-        <TaskStatusBadge status={task.status} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent {...isolate} align="end">
-        <DropdownMenuLabel>Statut</DropdownMenuLabel>
-        <DropdownMenuRadioGroup
-          value={task.status}
-          onValueChange={(status) => updateTask.mutate({ id: task.id, values: { status: status as TaskStatus } })}
-        >
-          {TASK_STATUSES.map((s) => (
-            <DropdownMenuRadioItem key={s} value={s}>
-              {TASK_STATUS_LABELS[s]}
-            </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
 
 /** Priorité cliquable. */
 export function PriorityMenu({ task }: { task: Task }) {
@@ -143,7 +114,18 @@ export function DueDateControl({ task }: { task: Task }) {
  * Avatars des affectés, cliquables : affecter ou désaffecter un membre du projet. Sans
  * responsable, la première personne affectée le devient.
  */
-export function AssigneeMenu({ task, profiles }: { task: Task; profiles: Map<string, Profile> }) {
+export function AssigneeMenu({
+  task,
+  profiles,
+  children,
+  className,
+}: {
+  task: Task
+  profiles: Map<string, Profile>
+  /** Contenu du déclencheur (par défaut : les avatars). */
+  children?: React.ReactNode
+  className?: string
+}) {
   const { data: projects = [] } = useProjects()
   const updateTask = useUpdateTask()
   const setAssigned = useSetAssigned()
@@ -160,8 +142,8 @@ export function AssigneeMenu({ task, profiles }: { task: Task; profiles: Map<str
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger {...isolate} aria-label={`Collaborateurs affectés à « ${task.title} »`} className={trigger}>
-        <AssigneeStack task={task} profiles={profiles} />
+      <DropdownMenuTrigger {...isolate} aria-label={`Collaborateurs affectés à « ${task.title} »`} className={className ?? trigger}>
+        {children ?? <AssigneeStack task={task} profiles={profiles} />}
       </DropdownMenuTrigger>
       <DropdownMenuContent {...isolate} align="end" className="max-h-72">
         <DropdownMenuLabel>Collaborateurs affectés</DropdownMenuLabel>
@@ -233,7 +215,7 @@ export function MoreMenu({ task, onOpen, onAddChecklist }: { task: Task; onOpen:
   )
 }
 
-function BlockDialog({ task, open, onClose }: { task: Task; open: boolean; onClose: () => void }) {
+export function BlockDialog({ task, open, onClose }: { task: Task; open: boolean; onClose: () => void }) {
   const updateTask = useUpdateTask()
   const [reason, setReason] = useState("")
   return (

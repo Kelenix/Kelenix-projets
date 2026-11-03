@@ -87,16 +87,18 @@ export function useTasks() {
       const rows = await fetchAll((from, to) =>
         getSupabase()
           .from("tasks")
-          .select("*, task_checklist_items(id, label, done), task_assignees(user_id, estimated_minutes), time_entries(id, user_id, started_at, ended_at, kind, description, source, edited_at, pause_reason)")
+          .select("*, task_checklist_items(id, label, done), task_assignees(user_id, estimated_minutes), task_comments(count), task_links(count), time_entries(id, user_id, started_at, ended_at, kind, description, source, edited_at, pause_reason)")
           .order("created_at")
           .order("id")
           .order("created_at", { referencedTable: "task_checklist_items" })
           .range(from, to)
       )
-      return rows.map(({ task_checklist_items, task_assignees, ...task }) => ({
+      return rows.map(({ task_checklist_items, task_assignees, task_comments, task_links, ...task }) => ({
         ...task,
         checklist: task_checklist_items,
         assignees: task_assignees,
+        comment_count: task_comments[0]?.count ?? 0,
+        link_count: task_links[0]?.count ?? 0,
       }))
     },
   })
