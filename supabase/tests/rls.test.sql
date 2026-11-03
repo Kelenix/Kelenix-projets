@@ -1,6 +1,6 @@
 -- Tests RLS (pgTAP) : `pnpm test:db`. S'appuie sur les comptes de démo de seed.sql.
 begin;
-select plan(39);
+select plan(41);
 
 create temp table projects_all_for_test on commit drop as select id from public.projects;
 grant select on projects_all_for_test to authenticated;
@@ -73,10 +73,18 @@ select is(
   (select count(*)::int from public.time_entries where user_id = auth.uid() and ended_at is null), 1,
   'un seul chronomètre en cours par personne'
 );
-select public.pause_timer();
+select throws_ok(
+  $$select public.pause_timer('sieste')$$,
+  'P0001', null, 'pause : motif inconnu refusé'
+);
+select public.pause_timer('meal');
 select is(
-  (select kind from public.time_entries where user_id = auth.uid() and ended_at is null), 'pause',
-  'pause : le travail s''arrête et une pause est comptée à part'
+  (select kind || '/' || pause_reason from public.time_entries where user_id = auth.uid() and ended_at is null), 'pause/meal',
+  'pause : le travail s''arrête et une pause « repas » est comptée à part'
+);
+select lives_ok(
+  $$select public.set_pause_reason((select id from public.time_entries where user_id = auth.uid() and ended_at is null), 'meeting')$$,
+  'pause : motif corrigeable par son auteur'
 );
 select public.resume_timer();
 select is(

@@ -5,6 +5,15 @@
 
 ---
 
+## ADR-017 — Motifs de pause et détection des pauses anormalement longues
+
+- **Date** : 2026-11-03
+- **Statut** : Accepté (demande de l'utilisateur)
+- **Décideur** : Claude (rôle : product-owner)
+- **Décision** : Motif obligatoire à la mise en pause (Repas, Repos, Réunion, Personnel, Autre), corrigeable après coup par l'auteur ou le propriétaire. Seuils de pause anormalement longue par motif : repas 90 min, repos 20 min, réunion 120 min, personnel 30 min, autre 30 min (`PAUSE_REASONS` dans `src/lib/domain.ts`). Signalement en direct sur la carte (pastille rouge), dans l'historique (badge, filtre « Pauses longues ») et dans la feuille de temps (nombre de pauses, dont longues ; bascule Travail / Pauses par jour, semaine ou mois).
+- **Alternatives écartées** : Seuil unique pour toutes les pauses — une pause repas de 45 min serait signalée à tort ; seuils réglables par l'utilisateur — non demandé, à ajouter si besoin.
+- **Impact** : fonctionnel (pauses existantes classées « Autre »)
+
 ## ADR-016 — Gestion complète du temps : périodes, saisie manuelle, corrections tracées
 
 - **Date** : 2026-11-03

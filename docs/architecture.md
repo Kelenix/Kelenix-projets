@@ -42,7 +42,7 @@ erDiagram
 | `project_members` | membres autorisés ; le créateur est ajouté automatiquement |
 | `tasks` | statut (À faire, En cours, Reprogrammé, Terminé), priorité, responsable (membre du projet ou « À assigner »), échéance, `is_blocked` + explication obligatoire, `completed_at` (posé par trigger au passage à « Terminé ») |
 | `task_checklist_items`, `task_comments`, `task_links` | sous-éléments d'une tâche (URL http/https uniquement) |
-| `time_entries` | sessions (début / fin) par personne et par tâche, de type `work` ou `pause`, source `timer` ou `manual`, description du travail ; une seule ouverte par personne ; écritures uniquement via `start_timer`, `pause_timer`, `resume_timer`, `stop_timer`, `log_time` (heures oubliées), `edit_time_entry` (correction justifiée), `set_time_entry_description` — pas de temps futur, pas de chevauchement, 16 h max |
+| `time_entries` | sessions (début / fin) par personne et par tâche, de type `work` ou `pause`, source `timer` ou `manual`, description du travail, motif de pause (`meal`, `rest`, `meeting`, `personal`, `other`) ; une seule ouverte par personne ; écritures uniquement via `start_timer`, `pause_timer`, `resume_timer`, `stop_timer`, `log_time` (heures oubliées), `edit_time_entry` (correction justifiée), `set_time_entry_description` — pas de temps futur, pas de chevauchement, 16 h max |
 | `time_entry_changes` | journal des corrections : ancienne et nouvelle plage, auteur, justification (lecture seule) |
 
 Règles calculées (non stockées) : **retard** = échéance passée et statut ≠ Terminé ;

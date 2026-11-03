@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest"
+import { isLongPause } from "./domain"
 import { formatDuration, periodBuckets, timeByUser, timeSince, timesheet, totals } from "./time"
 
 const at = (min: number) => new Date(Date.UTC(2026, 10, 2, 9, min)).toISOString()
@@ -51,8 +52,9 @@ describe("timesheet et périodes", () => {
     const { buckets } = periodBuckets("week", 0, ref)
     expect(buckets[0]!.start.getDay()).toBe(1)
     const rows = timesheet(entries, buckets, at)
-    expect(rows[0]).toMatchObject({ userId: "a", pause: 15 * 60_000 })
+    expect(rows[0]).toMatchObject({ userId: "a", pause: 15 * 60_000, pauseCount: 1, longPauses: 0 })
     expect(rows[0]!.perBucket.map(hours)).toEqual([2, 4, 0, 0, 0, 0, 0])
+    expect(rows[0]!.pausePerBucket.map((ms) => ms / 60_000)).toEqual([15, 0, 0, 0, 0, 0, 0])
     expect(rows[1]!.perBucket.map(hours)).toEqual([0, 1, 1, 0, 0, 0, 0])
   })
 
@@ -80,5 +82,25 @@ describe("formatDuration", () => {
   it("affiche les secondes pour une session en cours", () => {
     expect(formatDuration(64_000, true)).toBe("01:04")
     expect(formatDuration(3_725_000, true)).toBe("1:02:05")
+  })
+})
+
+describe("pauses anormalement longues", () => {
+  const pause = (minutes: number, reason: string | null) => ({
+    user_id: "a",
+    kind: "pause",
+    pause_reason: reason,
+    started_at: new Date(2026, 10, 2, 12).toISOString(),
+    ended_at: new Date(2026, 10, 2, 12, minutes).toISOString(),
+  })
+  it("seuil selon le motif (repos 20 min, repas 90 min, autre 30 min)", () => {
+    expect(isLongPause(pause(25, "rest"))).toBe(true)
+    expect(isLongPause(pause(25, "meal"))).toBe(false)
+    expect(isLongPause(pause(45, null))).toBe(true)
+    expect(isLongPause({ ...pause(45, "rest"), kind: "work" })).toBe(false)
+  })
+  it("une pause en cours devient longue en dépassant le seuil", () => {
+    const open = { ...pause(0, "personal"), ended_at: null }
+    expect(isLongPause(open, Date.parse(open.started_at) + 31 * 60_000)).toBe(true)
   })
 })

@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronLeft, ChevronRight, Clock } from "lucide-react"
+import { ChevronLeft, ChevronRight, Clock, TriangleAlert } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { NativeSelect } from "@/components/native-select"
 import { Button } from "@/components/ui/button"
@@ -51,6 +51,8 @@ export function Timesheet({
   const [period, setPeriod] = useState<Period>("week")
   const [offset, setOffset] = useState(0)
   const [taskId, setTaskId] = useState("")
+  // Contenu des colonnes de la période : temps de travail actif ou temps de pause.
+  const [show, setShow] = useState<"work" | "pause">("work")
   const { title, buckets } = useMemo(() => periodBuckets(period, offset), [period, offset])
   const scoped = taskId ? tasks.filter((t) => t.id === taskId) : tasks
   const entries = scoped.flatMap((t) => t.time_entries)
@@ -58,7 +60,21 @@ export function Timesheet({
   const rows = timesheet(entries, buckets, now)
   const names = new Map(profiles.map((p) => [p.id, p.full_name]))
   const current = buckets.findIndex((b) => now >= b.start.getTime() && now < b.end.getTime())
-  const bucketTotals = buckets.map((_, i) => rows.reduce((sum, r) => sum + r.perBucket[i]!, 0))
+  const perBucket = (r: (typeof rows)[number]) => (show === "work" ? r.perBucket : r.pausePerBucket)
+  const bucketTotals = buckets.map((_, i) => rows.reduce((sum, r) => sum + perBucket(r)[i]!, 0))
+  const pauseCount = rows.reduce((s, r) => s + r.pauseCount, 0)
+  const longPauses = rows.reduce((s, r) => s + r.longPauses, 0)
+  const countCell = (count: number, long: number) => (
+    <span className="inline-flex items-center justify-end gap-1">
+      {count === 0 ? <span className="text-muted-foreground/60">—</span> : count}
+      {long > 0 && (
+        <span className="inline-flex items-center gap-0.5 text-xs font-medium text-destructive" title="Pauses anormalement longues">
+          <TriangleAlert className="size-3" aria-hidden />
+          {long} longue{long > 1 ? "s" : ""}
+        </span>
+      )}
+    </span>
+  )
   const cell = (ms: number) => (ms === 0 ? <span className="text-muted-foreground/60">—</span> : formatDuration(ms))
 
   return (
@@ -90,6 +106,14 @@ export function Timesheet({
             <ChevronRight />
           </Button>
         </div>
+        {buckets.length > 1 && (
+          <Tabs value={show} onValueChange={(v) => setShow(v as "work" | "pause")}>
+            <TabsList aria-label="Afficher par période">
+              <TabsTrigger value="work">Travail</TabsTrigger>
+              <TabsTrigger value="pause">Pauses</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
         {offset !== 0 && (
           <Button variant="ghost" size="sm" onClick={() => setOffset(0)}>
             {CURRENT[period]}
@@ -113,8 +137,10 @@ export function Timesheet({
         </p>
       ) : (
         <div className="overflow-x-auto rounded-xl border bg-card">
-          <table className={cn("w-full text-sm", buckets.length > 3 && "min-w-[720px]")}>
-            <caption className="sr-only">Temps de travail par personne — {title}</caption>
+          <table className={cn("w-full text-sm whitespace-nowrap", buckets.length > 3 && "min-w-[720px]")}>
+            <caption className="sr-only">
+              {show === "work" ? "Temps de travail" : "Temps de pause"} par personne — {title}
+            </caption>
             <thead>
               <tr className="border-b text-left text-xs text-muted-foreground">
                 <th scope="col" className="px-3 py-2 font-medium">Personne</th>
@@ -130,6 +156,7 @@ export function Timesheet({
                   ))}
                 <th scope="col" className="px-3 py-2 text-right font-medium">Travail</th>
                 <th scope="col" className="px-3 py-2 text-right font-medium">Pauses</th>
+                <th scope="col" className="px-3 py-2 text-right font-medium">Nb de pauses</th>
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -149,13 +176,14 @@ export function Timesheet({
                       </span>
                     </th>
                     {buckets.length > 1 &&
-                      row.perBucket.map((ms, i) => (
+                      perBucket(row).map((ms, i) => (
                         <td key={i} className={cn("px-2 py-2 text-right tabular-nums", i === current && "bg-accent/40")}>
                           {cell(ms)}
                         </td>
                       ))}
                     <td className="px-3 py-2 text-right font-semibold tabular-nums">{formatDuration(row.work)}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-[oklch(0.5_0.14_55)]">{cell(row.pause)}</td>
+                    <td className="px-3 py-2 text-right tabular-nums">{countCell(row.pauseCount, row.longPauses)}</td>
                   </tr>
                 )
               })}
@@ -172,6 +200,7 @@ export function Timesheet({
                     ))}
                   <td className="px-3 py-2 text-right tabular-nums">{formatDuration(rows.reduce((s, r) => s + r.work, 0))}</td>
                   <td className="px-3 py-2 text-right tabular-nums">{cell(rows.reduce((s, r) => s + r.pause, 0))}</td>
+                  <td className="px-3 py-2 text-right tabular-nums">{countCell(pauseCount, longPauses)}</td>
                 </tr>
               </tfoot>
             )}

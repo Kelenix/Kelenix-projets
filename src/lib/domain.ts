@@ -5,7 +5,7 @@ export type Client = Tables<"clients">
 export type Project = Tables<"projects"> & { member_ids: string[] }
 export type ChecklistItem = Pick<Tables<"task_checklist_items">, "id" | "label" | "done">
 export type TimeEntry = Pick<Tables<"time_entries">, "user_id" | "started_at" | "ended_at"> &
-  Partial<Pick<Tables<"time_entries">, "id" | "kind" | "description" | "source" | "edited_at">>
+  Partial<Pick<Tables<"time_entries">, "id" | "kind" | "description" | "source" | "edited_at" | "pause_reason">>
 /** Tâche avec sa checklist et le temps passé, visibles directement sur les cartes. */
 export type Task = Tables<"tasks"> & { checklist: ChecklistItem[]; time_entries: TimeEntry[] }
 export type ProjectStatus = Enums<"project_status">
@@ -91,4 +91,25 @@ export function initials(name: string) {
 /** Recherche insensible à la casse et aux accents. */
 export function normalize(text: string) {
   return text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase()
+}
+
+export type PauseReason = "meal" | "rest" | "meeting" | "personal" | "other"
+
+/** Motifs de pause et durée au-delà de laquelle une pause est jugée anormalement longue (minutes). */
+export const PAUSE_REASONS: Record<PauseReason, { label: string; maxMinutes: number }> = {
+  meal: { label: "Repas", maxMinutes: 90 },
+  rest: { label: "Repos", maxMinutes: 20 },
+  meeting: { label: "Réunion", maxMinutes: 120 },
+  personal: { label: "Personnel", maxMinutes: 30 },
+  other: { label: "Autre", maxMinutes: 30 },
+}
+
+export const pauseReasonOf = (e: { pause_reason?: string | null }): PauseReason =>
+  e.pause_reason && e.pause_reason in PAUSE_REASONS ? (e.pause_reason as PauseReason) : "other"
+
+/** Pause anormalement longue : durée (en cours comprise) au-delà du seuil de son motif. */
+export function isLongPause(e: TimeEntry, now = Date.now()) {
+  if (e.kind !== "pause") return false
+  const ms = (e.ended_at ? Date.parse(e.ended_at) : now) - Date.parse(e.started_at)
+  return ms > PAUSE_REASONS[pauseReasonOf(e)].maxMinutes * 60_000
 }

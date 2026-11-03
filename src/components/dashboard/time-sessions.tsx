@@ -1,6 +1,6 @@
 "use client"
 
-import { Coffee, History, Loader2, Pencil, Plus } from "lucide-react"
+import { Coffee, History, Loader2, Pencil, Plus, TriangleAlert } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Field } from "@/components/field"
 import { NativeSelect } from "@/components/native-select"
@@ -11,8 +11,18 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { initials, todayISO, type Profile, type Task, type TimeEntry } from "@/lib/domain"
-import { useEditTimeEntry, useLogTime, useSetTimeDescription, useTimeChanges } from "@/lib/queries"
+import {
+  initials,
+  isLongPause,
+  PAUSE_REASONS,
+  pauseReasonOf,
+  todayISO,
+  type PauseReason,
+  type Profile,
+  type Task,
+  type TimeEntry,
+} from "@/lib/domain"
+import { useEditTimeEntry, useLogTime, useSetPauseReason, useSetTimeDescription, useTimeChanges } from "@/lib/queries"
 import { editSessionSchema, fieldErrors, manualTimeSchema } from "@/lib/schemas"
 import { formatDuration, totals } from "@/lib/time"
 import { cn } from "@/lib/utils"
@@ -164,16 +174,33 @@ function SessionHistory({
     [tasks]
   )
   const now = useTick(sessions.some((s) => !s.ended_at))
+  const [filter, setFilter] = useState<"all" | "work" | "pause" | "long">("all")
+  const shown = sessions.filter((s) =>
+    filter === "all" ? true : filter === "work" ? s.kind !== "pause" : filter === "pause" ? s.kind === "pause" : isLongPause(s, now)
+  )
 
   if (sessions.length === 0)
     return <p className="rounded-xl border border-dashed bg-card/60 px-6 py-8 text-center text-sm text-muted-foreground">Aucune session enregistrée.</p>
 
   return (
     <div className="space-y-2">
-      <h3 className="flex items-center gap-2 text-sm font-semibold">
-        <History className="size-4 text-muted-foreground" aria-hidden /> Historique des sessions
-      </h3>
-      <ShowMore items={sessions} pageSize={30}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="flex items-center gap-2 text-sm font-semibold">
+          <History className="size-4 text-muted-foreground" aria-hidden /> Historique des sessions
+        </h3>
+        <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
+          <TabsList aria-label="Filtrer l'historique">
+            <TabsTrigger value="all">Tout</TabsTrigger>
+            <TabsTrigger value="work">Travail</TabsTrigger>
+            <TabsTrigger value="pause">Pauses</TabsTrigger>
+            <TabsTrigger value="long">Pauses longues</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+      {shown.length === 0 && (
+        <p className="rounded-xl border border-dashed bg-card/60 px-6 py-6 text-center text-sm text-muted-foreground">Aucune session pour ce filtre.</p>
+      )}
+      <ShowMore key={filter} items={shown} pageSize={30}>
         {(visible) => (
           <ol className="divide-y rounded-xl border bg-card">
             {visible.map((s, i) => {
@@ -193,11 +220,7 @@ function SessionHistory({
                       {hm(s.started_at)} → {s.ended_at ? hm(s.ended_at) : "en cours"}
                     </span>
                     <span className="font-semibold tabular-nums">{formatDuration(duration)}</span>
-                    {s.kind === "pause" && (
-                      <Badge className="bg-warning/15 text-[oklch(0.5_0.14_55)]">
-                        <Coffee aria-hidden /> Pause
-                      </Badge>
-                    )}
+                    {s.kind === "pause" && <PauseBadges session={s} editable={canEdit(s)} now={now} />}
                     {s.source === "manual" && <Badge variant="outline">Ajout manuel</Badge>}
                     {s.edited_at && <Badge variant="outline">Modifiée</Badge>}
                     {showTask && <span className="truncate text-xs text-muted-foreground">· {s.task.title}</span>}
@@ -406,5 +429,40 @@ function EditSessionDialog({ session, onClose }: { session: Session; onClose: ()
         </form>
       </DialogContent>
     </Dialog>
+  )
+}
+
+/** Motif d'une pause (modifiable par son auteur ou le propriétaire) et alerte de durée anormale. */
+function PauseBadges({ session, editable, now }: { session: Session; editable: boolean; now: number }) {
+  const setReason = useSetPauseReason()
+  const reason = pauseReasonOf(session)
+  const long = isLongPause(session, now)
+  return (
+    <>
+      <Badge className="bg-warning/15 text-[oklch(0.5_0.14_55)]">
+        <Coffee aria-hidden /> Pause
+      </Badge>
+      {editable && session.id ? (
+        <NativeSelect
+          aria-label="Motif de la pause"
+          value={reason}
+          onChange={(e) => setReason.mutate({ id: session.id!, reason: e.target.value as PauseReason })}
+          className="w-36 [&_select]:h-7 [&_select]:text-xs"
+        >
+          {(Object.entries(PAUSE_REASONS) as [PauseReason, (typeof PAUSE_REASONS)[PauseReason]][]).map(([value, r]) => (
+            <option key={value} value={value}>
+              {r.label}
+            </option>
+          ))}
+        </NativeSelect>
+      ) : (
+        <Badge variant="outline">{PAUSE_REASONS[reason].label}</Badge>
+      )}
+      {long && (
+        <Badge variant="destructive" title={`Au-delà de ${PAUSE_REASONS[reason].maxMinutes} min pour une pause « ${PAUSE_REASONS[reason].label.toLowerCase()} »`}>
+          <TriangleAlert aria-hidden /> Pause longue
+        </Badge>
+      )}
+    </>
   )
 }

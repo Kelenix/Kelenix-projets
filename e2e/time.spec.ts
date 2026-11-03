@@ -51,7 +51,19 @@ test("temps : heures oubliées, modification justifiée, description, historique
   await sheet.getByRole("button", { name: "Enregistrer", exact: true }).click()
   await expect(sheet.getByText(`Relecture ${id}`)).toBeVisible()
 
+  // Pause avec motif, visible dans l'historique filtré sur les pauses
+  await sheet.getByRole("button", { name: "Démarrer le chrono sur « Rédiger les mentions légales »" }).click()
+  await sheet.getByRole("button", { name: "Mettre en pause « Rédiger les mentions légales »" }).click()
+  await page.getByRole("menuitem", { name: /^Repas/ }).click()
+  await sheet.getByRole("button", { name: "Terminer la session sur « Rédiger les mentions légales »" }).click()
+  const historyFilter = sheet.getByRole("tablist", { name: "Filtrer l'historique" })
+  await historyFilter.getByRole("tab", { name: "Pauses", exact: true }).click()
+  await expect(sheet.getByLabel("Motif de la pause").first()).toHaveValue("meal")
+  await expect(sheet.getByRole("listitem").filter({ hasText: `Brouillon` })).toHaveCount(0)
+  await historyFilter.getByRole("tab", { name: "Tout" }).click()
+
   // Périodes : jour, mois, année
+  await sheet.getByRole("tablist", { name: "Afficher par période" }).getByRole("tab", { name: "Pauses" }).click()
   for (const period of ["Jour", "Mois", "Année"]) {
     await sheet.getByRole("tab", { name: period }).click()
     await expect(sheet.getByRole("tab", { name: period })).toHaveAttribute("aria-selected", "true")

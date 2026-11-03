@@ -59,6 +59,7 @@
 
 ## Journal de session
 
+- 2026-11-03 — Pauses : motif, nombre de pauses, pauses par jour, historique filtré, détection des pauses anormalement longues.
 - 2026-11-03 — Temps : vues jour/semaine/mois/année, totaux tâche et projet, historique des sessions, heures oubliées, corrections justifiées et tracées, description du travail.
 - 2026-11-03 — Feuille de temps quotidienne (projet, tâche, équipe) et pauses mesurées (Pause / Reprendre / Terminer) ; site en ligne sur https://kelenix.tech.
 - 2026-11-03 — Pipeline en 8 étapes (préproduction temporaire testée puis production), image unique, publication via le nginx existant du VPS sans toucher aux autres services ; domaine kelenix.tech.

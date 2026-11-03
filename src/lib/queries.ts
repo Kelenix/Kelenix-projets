@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query"
 import { toast } from "sonner"
 import type { TablesInsert, TablesUpdate } from "@/lib/database.types"
-import type { Client, Profile, Project, Task } from "@/lib/domain"
+import type { Client, PauseReason, Profile, Project, Task } from "@/lib/domain"
 import { getSupabase } from "@/lib/supabase/client"
 
 type PgError = { code?: string; message: string }
@@ -86,7 +86,7 @@ export function useTasks() {
       const rows = await fetchAll((from, to) =>
         getSupabase()
           .from("tasks")
-          .select("*, task_checklist_items(id, label, done), time_entries(id, user_id, started_at, ended_at, kind, description, source, edited_at)")
+          .select("*, task_checklist_items(id, label, done), time_entries(id, user_id, started_at, ended_at, kind, description, source, edited_at, pause_reason)")
           .order("created_at")
           .order("id")
           .order("created_at", { referencedTable: "task_checklist_items" })
@@ -266,7 +266,9 @@ export function useAddTaskItem<T extends DetailTable>(table: T, taskId: string) 
   )
 }
 
-export type TimerAction = { type: "start"; taskId: string } | { type: "pause" | "resume" | "stop"; taskId: string }
+export type TimerAction =
+  | { type: "start" | "resume" | "stop"; taskId: string }
+  | { type: "pause"; taskId: string; reason: PauseReason }
 
 /**
  * Chronomètre de l'utilisateur : démarrer, mettre en pause (temps de pause compté à part),
@@ -278,8 +280,8 @@ export function useTimer(userId: string) {
     mutationFn: async (action: TimerAction) => {
       const supabase = getSupabase()
       if (action.type === "start") return unwrap(await supabase.rpc("start_timer", { p_task_id: action.taskId }))
-      const rpc = { pause: "pause_timer", resume: "resume_timer", stop: "stop_timer" } as const
-      return unwrap(await supabase.rpc(rpc[action.type]))
+      if (action.type === "pause") return unwrap(await supabase.rpc("pause_timer", { p_reason: action.reason }))
+      return unwrap(await supabase.rpc(action.type === "resume" ? "resume_timer" : "stop_timer"))
     },
     onMutate: async (action) => {
       await queryClient.cancelQueries({ queryKey: keys.tasks })
@@ -289,7 +291,14 @@ export function useTimer(userId: string) {
       queryClient.setQueryData<Task[]>(keys.tasks, (tasks) =>
         tasks?.map((t) => {
           const entries = t.time_entries.map((e) => (e.user_id === userId && !e.ended_at ? { ...e, ended_at: now } : e))
-          if (next && t.id === action.taskId) entries.push({ user_id: userId, started_at: now, ended_at: null, kind: next })
+          if (next && t.id === action.taskId)
+            entries.push({
+              user_id: userId,
+              started_at: now,
+              ended_at: null,
+              kind: next,
+              pause_reason: action.type === "pause" ? action.reason : null,
+            })
           return { ...t, time_entries: entries }
         })
       )
@@ -417,5 +426,14 @@ export function useSetTimeDescription() {
     async (v: { id: string; description: string }) =>
       unwrap(await getSupabase().rpc("set_time_entry_description", { p_id: v.id, p_description: v.description })),
     "Description enregistrée."
+  )
+}
+
+/** Motif d'une pause (corrigeable après coup). */
+export function useSetPauseReason() {
+  return useTimeWrite(
+    async (v: { id: string; reason: PauseReason }) =>
+      unwrap(await getSupabase().rpc("set_pause_reason", { p_id: v.id, p_reason: v.reason })),
+    "Motif de pause enregistré."
   )
 }

@@ -342,6 +342,7 @@ export type Database = {
           ended_at: string | null
           id: string
           kind: string
+          pause_reason: string | null
           source: string
           started_at: string
           task_id: string
@@ -354,6 +355,7 @@ export type Database = {
           ended_at?: string | null
           id?: string
           kind?: string
+          pause_reason?: string | null
           source?: string
           started_at?: string
           task_id: string
@@ -365,6 +367,7 @@ export type Database = {
           ended_at?: string | null
           id?: string
           kind?: string
+          pause_reason?: string | null
           source?: string
           started_at?: string
           task_id?: string
@@ -469,8 +472,9 @@ export type Database = {
         Args: { p_description: string; p_ended_at: string; p_started_at: string; p_task_id: string }
         Returns: string
       }
-      pause_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
+      pause_timer: { Args: { p_reason?: string }; Returns: undefined }
       resume_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
+      set_pause_reason: { Args: { p_id: string; p_reason: string }; Returns: undefined }
       set_time_entry_description: { Args: { p_description: string; p_id: string }; Returns: undefined }
       start_timer: { Args: { p_task_id: string }; Returns: undefined }
       stop_timer: { Args: Record<PropertyKey, never>; Returns: undefined }

@@ -1,4 +1,4 @@
-import type { TimeEntry } from "@/lib/domain"
+import { isLongPause, type TimeEntry } from "@/lib/domain"
 
 const isWork = (e: TimeEntry) => e.kind !== "pause"
 
@@ -19,6 +19,8 @@ export type UserTime = {
   paused: boolean
   /** Durée de la pause en cours (ms), 0 sinon. */
   currentPauseMs: number
+  /** Pause en cours (motif, détection de durée anormale). */
+  currentPause?: TimeEntry
 }
 
 /** Temps par personne (session en cours comprise) : travail en cours d'abord, puis en pause, puis par temps. */
@@ -42,6 +44,7 @@ export function timeByUser(entries: TimeEntry[], now = Date.now()): UserTime[] {
       if (e.ended_at === null) {
         row.paused = true
         row.currentPauseMs = ms
+        row.currentPause = e
       }
     }
     totals.set(e.user_id, row)
@@ -118,8 +121,14 @@ export type TimesheetRow = {
   userId: string
   /** Temps de travail par colonne (ms), dans l'ordre des colonnes. */
   perBucket: number[]
+  /** Temps de pause par colonne (ms). */
+  pausePerBucket: number[]
   work: number
   pause: number
+  /** Nombre de pauses prises sur la période (commencées dans la période). */
+  pauseCount: number
+  /** Dont pauses anormalement longues. */
+  longPauses: number
 }
 
 /**
@@ -133,13 +142,27 @@ export function timesheet(entries: TimeEntry[], buckets: Bucket[], now = Date.no
   const rows = new Map<string, TimesheetRow>()
   for (const e of entries) {
     if (entryMs(e, now, from, to) === 0) continue
-    const row = rows.get(e.user_id) ?? { userId: e.user_id, perBucket: buckets.map(() => 0), work: 0, pause: 0 }
+    const row = rows.get(e.user_id) ?? {
+      userId: e.user_id,
+      perBucket: buckets.map(() => 0),
+      pausePerBucket: buckets.map(() => 0),
+      work: 0,
+      pause: 0,
+      pauseCount: 0,
+      longPauses: 0,
+    }
+    const started = Date.parse(e.started_at)
+    if (!isWork(e) && started >= from && started < to) {
+      row.pauseCount++
+      if (isLongPause(e, now)) row.longPauses++
+    }
     buckets.forEach((b, i) => {
       const ms = entryMs(e, now, b.start.getTime(), b.end.getTime())
       if (isWork(e)) {
         row.perBucket[i]! += ms
         row.work += ms
       } else {
+        row.pausePerBucket[i]! += ms
         row.pause += ms
       }
     })
