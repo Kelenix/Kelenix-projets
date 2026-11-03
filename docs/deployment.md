@@ -42,7 +42,7 @@ Fichiers dans `/opt/kelenix` : `docker-compose.yml`, `Caddyfile`, scripts, migra
 |------|-----|--------|
 | Variable | `DOMAIN` | `kelenix.tech` |
 | Variable | `VPS_HOST` / `VPS_USER` | `69.62.116.243` / `root` |
-| Variable | `ADMIN_EMAIL`, `ADMIN_NAME` | Compte propriétaire créé au premier déploiement |
+| Secret / variable | `ADMIN_EMAIL` (secret), `ADMIN_NAME` | Compte propriétaire créé au premier déploiement ; pour changer son e-mail ensuite : *Actions → E-mail du propriétaire* |
 | Secret | `POSTGRES_PASSWORD`, `JWT_SECRET`, `ANON_KEY`, `SERVICE_ROLE_KEY`, `ADMIN_PASSWORD` | Générés automatiquement |
 | Secret | `VPS_SSH_KEY` | Clé privée de déploiement (dédiée à GitHub Actions) |
 

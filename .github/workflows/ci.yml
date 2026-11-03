@@ -260,6 +260,7 @@ jobs:
           ANON_KEY: ${{ secrets.ANON_KEY }}
           SERVICE_ROLE_KEY: ${{ secrets.SERVICE_ROLE_KEY }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
         run: |
           {
             echo "DOMAIN=${{ vars.DOMAIN }}"
@@ -268,7 +269,7 @@ jobs:
             echo "GATEWAY_PORT=18080"
             echo "COMPOSE_PROFILES=backup"
             echo "APP_IMAGE=$(cat release/IMAGE)"
-            echo "ADMIN_EMAIL=${{ vars.ADMIN_EMAIL }}"
+            echo "ADMIN_EMAIL=$ADMIN_EMAIL"
             echo "ADMIN_NAME='${{ vars.ADMIN_NAME || 'Propriétaire' }}'"
             echo "ADMIN_PASSWORD=$ADMIN_PASSWORD"
             echo "POSTGRES_PASSWORD=$POSTGRES_PASSWORD"

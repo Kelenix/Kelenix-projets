@@ -1,0 +1,33 @@
+# Opération ponctuelle : aligne l'e-mail du compte propriétaire de production sur la variable
+# ADMIN_EMAIL (secret) du dépôt. Lancement manuel ; aucune adresse n'apparaît dans les journaux.
+name: E-mail du propriétaire
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  owner-email:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: vps-deploy
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v5
+      - name: Accès SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 15 -H "${{ vars.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Mise à jour en production
+        env:
+          TARGET_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+        run: |
+          ssh "${{ vars.VPS_USER || 'root' }}@${{ vars.VPS_HOST }}" \
+            "cd /opt/kelenix && docker compose -p kelenix-prod --env-file .env.prod exec -T -e TARGET_EMAIL='$TARGET_EMAIL' app node --input-type=module -" \
+            < scripts/set-owner-email.mjs
