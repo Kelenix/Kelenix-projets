@@ -10,14 +10,16 @@ test("carte : actions directes sans ouvrir la tâche", async ({ page }) => {
   await searchProject(page, "Site e-commerce (démo)")
   await page.getByRole("button", { name: /Site e-commerce \(démo\)/ }).click()
 
-  // Priorité et statut : listes visibles sur la carte
-  const priority = page.getByLabel(`Priorité de « ${title} »`)
-  const originalPriority = await priority.inputValue()
-  await priority.selectOption("high")
-  await expect(priority).toHaveValue("high")
-  const status = page.getByLabel(`Statut de « ${title} »`)
-  const originalStatus = await status.inputValue()
-  await status.selectOption("rescheduled")
+  // Priorité et statut : pastilles cliquables
+  const priority = page.getByRole("button", { name: new RegExp(`^Priorité de « ${title} »`) })
+  const originalPriority = (await priority.getAttribute("aria-label"))!.split(" : ")[1]!
+  await priority.click()
+  await page.getByRole("menuitemradio", { name: "Haute" }).click()
+  await expect(priority).toHaveAccessibleName(`Priorité de « ${title} » : Haute`)
+  const status = page.getByRole("button", { name: new RegExp(`^Statut de « ${title} »`) })
+  const originalStatus = (await status.getAttribute("aria-label"))!.split(" : ")[1]!
+  await status.click()
+  await page.getByRole("menuitemradio", { name: "Reprogrammé" }).click()
   await expect(page.getByRole("region", { name: /^Reprogrammé/ }).getByRole("button", { name: title, exact: true })).toBeVisible()
 
   // Blocage avec explication (bouton visible), puis déblocage
@@ -47,7 +49,9 @@ test("carte : actions directes sans ouvrir la tâche", async ({ page }) => {
   await expect(card).not.toContainText("Sam Leroy")
 
   // Remise dans l'état d'origine
-  await priority.selectOption(originalPriority)
-  await status.selectOption(originalStatus)
-  await expect(status).toHaveValue(originalStatus)
+  await priority.click()
+  await page.getByRole("menuitemradio", { name: originalPriority }).click()
+  await status.click()
+  await page.getByRole("menuitemradio", { name: originalStatus }).click()
+  await expect(status).toHaveAccessibleName(`Statut de « ${title} » : ${originalStatus}`)
 })

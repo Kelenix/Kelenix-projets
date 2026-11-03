@@ -23,12 +23,15 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   TASK_PRIORITIES,
   TASK_PRIORITY_LABELS,
+  TASK_STATUS_LABELS,
+  TASK_STATUSES,
   type Profile,
   type Task,
   type TaskPriority,
+  type TaskStatus,
 } from "@/lib/domain"
 import { useAddTaskItem, useDeleteTask, useProjects, useSetAssigned, useUpdateTask } from "@/lib/queries"
-import { AssigneeStack, DueDate, PriorityBadge } from "./task-meta"
+import { AssigneeStack, DueDate, PriorityBadge, TaskStatusBadge } from "./task-meta"
 
 /**
  * Empêche le glisser-déposer de la carte de démarrer depuis ces contrôles, y compris depuis les
@@ -41,6 +44,31 @@ export const isolate = {
 
 const trigger =
   "relative z-10 cursor-pointer rounded-full transition-shadow hover:ring-2 hover:ring-ring/30 focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+
+/** Pastille de statut cliquable : change le statut sans ouvrir la tâche. */
+export function StatusMenu({ task }: { task: Task }) {
+  const updateTask = useUpdateTask()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger {...isolate} aria-label={`Statut de « ${task.title} » : ${TASK_STATUS_LABELS[task.status]}`} className={`${trigger} shrink-0`}>
+        <TaskStatusBadge status={task.status} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent {...isolate} align="end">
+        <DropdownMenuLabel>Statut</DropdownMenuLabel>
+        <DropdownMenuRadioGroup
+          value={task.status}
+          onValueChange={(status) => updateTask.mutate({ id: task.id, values: { status: status as TaskStatus } })}
+        >
+          {TASK_STATUSES.map((s) => (
+            <DropdownMenuRadioItem key={s} value={s}>
+              {TASK_STATUS_LABELS[s]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 /** Priorité cliquable. */
 export function PriorityMenu({ task }: { task: Task }) {

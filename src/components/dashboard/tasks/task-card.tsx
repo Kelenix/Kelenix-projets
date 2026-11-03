@@ -4,33 +4,19 @@ import { Ban, Check, ExternalLink, Link2, MessageSquare, Plus, UserPlus } from "
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import type { TablesUpdate } from "@/lib/database.types"
-import {
-  formatDate,
-  isOverdue,
-  TASK_PRIORITIES,
-  TASK_PRIORITY_LABELS,
-  TASK_STATUS_LABELS,
-  TASK_STATUSES,
-  type Profile,
-  type Task,
-  type TaskPriority,
-  type TaskStatus,
-} from "@/lib/domain"
+import { formatDate, type Profile, type Task } from "@/lib/domain"
 import { useUpdateTask } from "@/lib/queries"
 import { formatDuration, totals } from "@/lib/time"
 import { cn } from "@/lib/utils"
-import { AssigneeMenu, BlockDialog, ChecklistAdd, isolate, MoreMenu } from "./card-actions"
-import { InlineChecklist } from "./inline-checklist"
-import { BlockedBadge, statusAccent, TaskStatusBadge } from "./task-meta"
+import { AssigneeMenu, BlockDialog, ChecklistAdd, DueDateControl, isolate, MoreMenu, PriorityMenu, StatusMenu } from "./card-actions"
+import { ChecklistProgress, InlineChecklist } from "./inline-checklist"
+import { BlockedBadge, statusAccent } from "./task-meta"
 import { TaskTime } from "./task-time"
 
-const CHECKLIST_PREVIEW = 4
-const field = "h-7 w-full rounded-md border border-input bg-card px-1.5 text-xs outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40"
 
 /**
- * Carte de tâche détaillée : informations et commandes affichées en clair (statut, priorité,
- * échéance, checklist, collaborateurs avec temps estimé / réel, commentaires, liens, chronomètre),
- * modifiables sans ouvrir le détail.
+ * Carte de tâche : statut, priorité, échéance et checklist modifiables d'un clic ; collaborateurs
+ * avec temps réel / estimé, commentaires, liens, chronomètre et commandes affichés en clair.
  */
 export function TaskCard({
   task,
@@ -46,17 +32,15 @@ export function TaskCard({
   className?: string
 }) {
   const updateTask = useUpdateTask()
-  const [allItems, setAllItems] = useState(false)
+  const [checklistOpen, setChecklistOpen] = useState(false)
   const [adding, setAdding] = useState(false)
+  const showChecklist = checklistOpen || adding
+  function toggleChecklist() {
+    setChecklistOpen(!showChecklist)
+    setAdding(false)
+  }
   const [blocking, setBlocking] = useState(false)
   const save = (values: TablesUpdate<"tasks">) => updateTask.mutate({ id: task.id, values })
-  const late = isOverdue(task)
-
-  const done = task.checklist.filter((i) => i.done).length
-  const percent = task.checklist.length ? Math.round((done / task.checklist.length) * 100) : 0
-  // Aperçu : éléments à faire d'abord, puis faits.
-  const ordered = [...task.checklist].sort((a, b) => Number(a.done) - Number(b.done))
-  const shownItems = allItems ? ordered : ordered.slice(0, CHECKLIST_PREVIEW)
 
   const people = task.assignees
     .map((a) => ({
@@ -78,7 +62,7 @@ export function TaskCard({
       <div className="flex items-center justify-between gap-2">
         <p className="min-w-0 truncate text-xs text-muted-foreground">{projectName}</p>
         <div className="flex shrink-0 items-center gap-0.5">
-          <TaskStatusBadge status={task.status} />
+          <StatusMenu task={task} />
           <MoreMenu task={task} onOpen={onOpen} onAddChecklist={() => setAdding(true)} />
         </div>
       </div>
@@ -104,78 +88,16 @@ export function TaskCard({
         </div>
       )}
 
-      {/* Champs modifiables directement */}
-      <div {...isolate} className="relative z-10 grid grid-cols-2 gap-2">
-        <label className="space-y-0.5">
-          <span className="text-[11px] text-muted-foreground">Statut</span>
-          <select
-            aria-label={`Statut de « ${task.title} »`}
-            value={task.status}
-            onChange={(e) => save({ status: e.target.value as TaskStatus })}
-            className={field}
-          >
-            {TASK_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {TASK_STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="space-y-0.5">
-          <span className="text-[11px] text-muted-foreground">Priorité</span>
-          <select
-            aria-label={`Priorité de « ${task.title} »`}
-            value={task.priority}
-            onChange={(e) => save({ priority: e.target.value as TaskPriority })}
-            className={field}
-          >
-            {TASK_PRIORITIES.map((p) => (
-              <option key={p} value={p}>
-                {TASK_PRIORITY_LABELS[p]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="space-y-0.5">
-          <span className={cn("text-[11px]", late ? "font-medium text-destructive" : "text-muted-foreground")}>
-            Échéance{late && " · en retard"}
-          </span>
-          <input
-            type="date"
-            aria-label={`Échéance de « ${task.title} »`}
-            value={task.due_date ?? ""}
-            onChange={(e) => save({ due_date: e.target.value || null })}
-            className={cn(field, late && "border-destructive/50 text-destructive")}
-          />
-        </label>
-        <div className="space-y-0.5">
-          <span className="text-[11px] text-muted-foreground">Checklist</span>
-          <div className="flex h-7 items-center gap-2">
-            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted" aria-hidden>
-              <div className={cn("h-full", percent === 100 ? "bg-success" : "bg-primary")} style={{ width: `${percent}%` }} />
-            </div>
-            <span className="text-xs tabular-nums">
-              {task.checklist.length ? `${done}/${task.checklist.length}` : "—"}
-            </span>
-          </div>
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <PriorityMenu task={task} />
+        <DueDateControl task={task} />
+        <ChecklistProgress task={task} expanded={showChecklist} onToggle={toggleChecklist} />
       </div>
-
-      {/* Checklist visible */}
-      {(task.checklist.length > 0 || adding) && (
-        <div className="relative z-10">
-          {task.checklist.length > 0 && <InlineChecklist task={{ ...task, checklist: shownItems }} />}
-          {task.checklist.length > CHECKLIST_PREVIEW && (
-            <button
-              type="button"
-              {...isolate}
-              onClick={() => setAllItems((v) => !v)}
-              className="px-1 text-xs font-medium text-primary hover:underline"
-            >
-              {allItems ? "Afficher moins" : `Voir les ${task.checklist.length - CHECKLIST_PREVIEW} autres éléments`}
-            </button>
-          )}
-          {adding && <ChecklistAdd task={task} autoFocus />}
+      {task.checklist.length > 0 && <ChecklistBar task={task} />}
+      {showChecklist && (
+        <div className="relative z-10 border-t pt-2">
+          <InlineChecklist task={task} />
+          <ChecklistAdd task={task} autoFocus={adding} />
         </div>
       )}
 
@@ -245,6 +167,24 @@ export function TaskCard({
         </Button>
       </div>
       <BlockDialog task={task} open={blocking} onClose={() => setBlocking(false)} />
+    </div>
+  )
+}
+
+/** Barre d'avancement de la checklist (verte une fois complète). */
+function ChecklistBar({ task }: { task: Task }) {
+  const done = task.checklist.filter((i) => i.done).length
+  const percent = Math.round((done / task.checklist.length) * 100)
+  return (
+    <div
+      role="progressbar"
+      aria-label={`Avancement de la checklist de « ${task.title} »`}
+      aria-valuenow={percent}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      className="h-1.5 overflow-hidden rounded-full bg-muted"
+    >
+      <div className={cn("h-full transition-[width]", percent === 100 ? "bg-success" : "bg-primary")} style={{ width: `${percent}%` }} />
     </div>
   )
 }
