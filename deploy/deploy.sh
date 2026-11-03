@@ -42,6 +42,11 @@ fi
 
 mkdir -p backups
 compose pull --quiet
+# La préproduction repart toujours de zéro : une ancienne base (restée après une coupure)
+# garderait les mots de passe d'un déploiement précédent.
+if [ "$ENV_NAME" = preprod ]; then
+  compose down -v --remove-orphans
+fi
 # La base et l'authentification d'abord : les migrations dépendent du schéma « auth ».
 compose up -d --wait db auth
 ./migrate.sh
