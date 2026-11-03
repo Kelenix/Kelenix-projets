@@ -7,7 +7,8 @@ import { TASK_STATUS_LABELS, TASK_STATUSES, type Profile, type Task, type TaskSt
 import { useUpdateTask } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { ChecklistProgress, InlineChecklist } from "./inline-checklist"
-import { AssigneeStack, BlockedBadge, DueDate, PriorityBadge, statusAccent, TaskStatusBadge } from "./task-meta"
+import { AssigneeMenu, ChecklistAdd, DueDateControl, MoreMenu, PriorityMenu } from "./card-actions"
+import { BlockedBadge, statusAccent, TaskStatusBadge } from "./task-meta"
 import { TaskTime } from "./task-time"
 
 export function TaskList({
@@ -45,20 +46,25 @@ export function TaskList({
                     {task.title}
                   </button>
                   {projectNames && <p className="truncate text-xs text-muted-foreground">{projectNames.get(task.project_id)}</p>}
-                  {openChecklist === task.id && <InlineChecklist task={task} className="mt-2 max-w-md" />}
+                  {openChecklist === task.id && (
+                    <div className="mt-2 max-w-md">
+                      <InlineChecklist task={task} />
+                      <ChecklistAdd task={task} />
+                    </div>
+                  )}
                   <TaskTime task={task} profiles={profiles} className="mt-2 max-w-md" />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <TaskStatusBadge status={task.status} />
-            {task.is_blocked && <BlockedBadge />}
-                  <PriorityBadge priority={task.priority} />
-                  <DueDate task={task} />
+                  {task.is_blocked && <BlockedBadge />}
+                  <PriorityMenu task={task} />
+                  <DueDateControl task={task} />
                   <ChecklistProgress
                     task={task}
                     expanded={openChecklist === task.id}
                     onToggle={() => setOpenChecklist((id) => (id === task.id ? null : task.id))}
                   />
-                  <AssigneeStack task={task} profiles={profiles} />
+                  <AssigneeMenu task={task} profiles={profiles} />
                   <NativeSelect
                     aria-label={`Statut de « ${task.title} »`}
                     value={task.status}
@@ -71,6 +77,7 @@ export function TaskList({
                       </option>
                     ))}
                   </NativeSelect>
+                  <MoreMenu task={task} onOpen={() => onOpen(task.id)} onAddChecklist={() => setOpenChecklist(task.id)} />
                 </div>
               </li>
             ))}

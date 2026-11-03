@@ -3,10 +3,15 @@
 import { useState } from "react"
 import type { Profile, Task } from "@/lib/domain"
 import { cn } from "@/lib/utils"
+import { AssigneeMenu, ChecklistAdd, DueDateControl, MoreMenu, PriorityMenu, StatusMenu } from "./card-actions"
 import { ChecklistProgress, InlineChecklist } from "./inline-checklist"
-import { AssigneeStack, BlockedBadge, DueDate, PriorityBadge, statusAccent, TaskStatusBadge } from "./task-meta"
+import { BlockedBadge, statusAccent } from "./task-meta"
 import { TaskTime } from "./task-time"
 
+/**
+ * Carte de tâche : la plupart des actions se font directement dessus (statut, priorité,
+ * échéance, affectés, checklist, blocage, chronomètre, suppression) sans ouvrir le détail.
+ */
 export function TaskCard({
   task,
   profiles,
@@ -21,6 +26,8 @@ export function TaskCard({
   className?: string
 }) {
   const [checklistOpen, setChecklistOpen] = useState(false)
+  const [adding, setAdding] = useState(false)
+  const showChecklist = checklistOpen || adding
   return (
     <div
       className={cn(
@@ -32,7 +39,10 @@ export function TaskCard({
     >
       <div className="mb-1 flex items-center justify-between gap-2">
         <p className="min-w-0 truncate text-xs text-muted-foreground">{projectName}</p>
-        <TaskStatusBadge status={task.status} />
+        <div className="flex shrink-0 items-center gap-0.5">
+          <StatusMenu task={task} />
+          <MoreMenu task={task} onOpen={onOpen} onAddChecklist={() => setAdding(true)} />
+        </div>
       </div>
       <button
         type="button"
@@ -44,16 +54,28 @@ export function TaskCard({
       >
         {task.title}
       </button>
+      {task.is_blocked && task.blocked_reason && (
+        <p className="mt-1 line-clamp-2 text-xs text-destructive">{task.blocked_reason}</p>
+      )}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <PriorityBadge priority={task.priority} />
+        <PriorityMenu task={task} />
         {task.is_blocked && <BlockedBadge />}
-        <DueDate task={task} />
-        <ChecklistProgress task={task} expanded={checklistOpen} onToggle={() => setChecklistOpen((o) => !o)} />
-        <span className="relative ml-auto">
-          <AssigneeStack task={task} profiles={profiles} />
+        <DueDateControl task={task} />
+        <ChecklistProgress
+          task={task}
+          expanded={showChecklist}
+          onToggle={() => (showChecklist ? (setChecklistOpen(false), setAdding(false)) : setChecklistOpen(true))}
+        />
+        <span className="ml-auto">
+          <AssigneeMenu task={task} profiles={profiles} />
         </span>
       </div>
-      {checklistOpen && <InlineChecklist task={task} className="mt-2 border-t pt-2" />}
+      {showChecklist && (
+        <div className="mt-2 border-t pt-2">
+          <InlineChecklist task={task} />
+          <ChecklistAdd task={task} autoFocus={adding} />
+        </div>
+      )}
       <TaskTime task={task} profiles={profiles} className="mt-1.5" />
     </div>
   )

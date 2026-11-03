@@ -59,6 +59,7 @@
 
 ## Journal de session
 
+- 2026-11-03 — Cartes : actions directes sans ouvrir la tâche (statut, priorité, échéance, affectés, checklist, blocage, suppression), aussi en vue liste.
 - 2026-11-03 — Collaborateurs : rôles administrateur / chef de projet (par projet) / collaborateur, plusieurs collaborateurs par tâche avec temps estimé, estimé vs réel, équipe en ce moment, accès aux rapports, pauses visibles selon le rôle.
 - 2026-11-03 — Pauses : motif, nombre de pauses, pauses par jour, historique filtré, détection des pauses anormalement longues.
 - 2026-11-03 — Temps : vues jour/semaine/mois/année, totaux tâche et projet, historique des sessions, heures oubliées, corrections justifiées et tracées, description du travail.
