@@ -1,0 +1,40 @@
+# État des lieux du VPS en lecture seule (aucune modification). Lancement manuel.
+# Le rapport est publié comme artefact (pas dans les journaux publics du dépôt).
+name: Inspection du VPS
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Accès SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -T 15 -H "${{ vars.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Rapport
+        run: |
+          ssh -o BatchMode=yes -o ConnectTimeout=20 "${{ vars.VPS_USER || 'root' }}@${{ vars.VPS_HOST }}" 'bash -s' > report.txt 2>&1 <<'EOF' || true
+          echo "== Système"; . /etc/os-release; echo "$PRETTY_NAME"; nproc; free -m | head -2; df -h / | tail -1
+          echo "== Ports en écoute"; ss -tlnpH | awk '{print $4, $6}' | sed 's/users:((\"\([^\"]*\)\".*/\1/' | sort -u
+          echo "== Services"; for s in nginx apache2 caddy docker mysql postgresql; do printf '%s: %s\n' "$s" "$(systemctl is-active $s 2>/dev/null)"; done
+          echo "== Sites nginx"; ls /etc/nginx/sites-enabled 2>/dev/null; grep -hs "server_name" /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*.conf | sort -u
+          echo "== Outils"; for c in docker certbot ufw; do printf '%s: %s\n' "$c" "$(command -v $c || echo absent)"; done
+          echo "== Pare-feu"; ufw status 2>/dev/null | head -5
+          echo "== Conteneurs"; docker ps --format '{{.Names}} | {{.Image}} | {{.Ports}}' 2>/dev/null
+          echo "== Dossier /opt"; ls /opt 2>/dev/null
+          EOF
+          echo "Rapport généré ($(wc -l < report.txt) lignes)."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rapport-vps
+          path: report.txt
+          retention-days: 1
