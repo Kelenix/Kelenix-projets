@@ -12,6 +12,7 @@ import { formatDuration, timeSince } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import { StatusBar, StatusLegend, WeeklyBars } from "./charts"
 import { useDashboard } from "./state"
+import { Timesheet } from "./timesheet"
 
 const PERIODS = [4, 8, 12] as const
 
@@ -100,6 +101,10 @@ export function StatisticsSection() {
               </div>
             </Card>
           </div>
+
+          <Card title="Feuille de temps de l'équipe">
+            <Timesheet tasks={stats.tasks} profiles={profiles} />
+          </Card>
 
           <Card title="Statistiques par membre">
             <div className="-mx-4 overflow-x-auto px-4">

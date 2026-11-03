@@ -4,7 +4,7 @@ export type Profile = Tables<"profiles">
 export type Client = Tables<"clients">
 export type Project = Tables<"projects"> & { member_ids: string[] }
 export type ChecklistItem = Pick<Tables<"task_checklist_items">, "id" | "label" | "done">
-export type TimeEntry = Pick<Tables<"time_entries">, "user_id" | "started_at" | "ended_at">
+export type TimeEntry = Pick<Tables<"time_entries">, "user_id" | "started_at" | "ended_at"> & { kind?: string }
 /** Tâche avec sa checklist et le temps passé, visibles directement sur les cartes. */
 export type Task = Tables<"tasks"> & { checklist: ChecklistItem[]; time_entries: TimeEntry[] }
 export type ProjectStatus = Enums<"project_status">

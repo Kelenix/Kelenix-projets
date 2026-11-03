@@ -1,6 +1,6 @@
 -- Tests RLS (pgTAP) : `pnpm test:db`. S'appuie sur les comptes de démo de seed.sql.
 begin;
-select plan(26);
+select plan(29);
 
 create temp table projects_all_for_test on commit drop as select id from public.projects;
 grant select on projects_all_for_test to authenticated;
@@ -72,6 +72,21 @@ select lives_ok(
 select is(
   (select count(*)::int from public.time_entries where user_id = auth.uid() and ended_at is null), 1,
   'un seul chronomètre en cours par personne'
+);
+select public.pause_timer();
+select is(
+  (select kind from public.time_entries where user_id = auth.uid() and ended_at is null), 'pause',
+  'pause : le travail s''arrête et une pause est comptée à part'
+);
+select public.resume_timer();
+select is(
+  (select kind from public.time_entries where user_id = auth.uid() and ended_at is null), 'work',
+  'reprise : la pause se termine et le travail reprend sur la même tâche'
+);
+select public.stop_timer();
+select is(
+  (select count(*)::int from public.time_entries where user_id = auth.uid() and ended_at is null), 0,
+  'fin : plus aucune session ouverte'
 );
 select throws_ok(
   $$select public.start_timer((select id from foreign_task_for_test))$$,

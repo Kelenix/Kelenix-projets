@@ -42,11 +42,12 @@ erDiagram
 | `project_members` | membres autorisés ; le créateur est ajouté automatiquement |
 | `tasks` | statut (À faire, En cours, Reprogrammé, Terminé), priorité, responsable (membre du projet ou « À assigner »), échéance, `is_blocked` + explication obligatoire, `completed_at` (posé par trigger au passage à « Terminé ») |
 | `task_checklist_items`, `task_comments`, `task_links` | sous-éléments d'une tâche (URL http/https uniquement) |
-| `time_entries` | sessions de travail chronométrées (début / fin) par personne et par tâche ; une seule en cours par personne (`start_timer`, `pause_timer`) |
+| `time_entries` | sessions chronométrées (début / fin) par personne et par tâche, de type `work` ou `pause` ; une seule ouverte par personne ; horodatage serveur via `start_timer`, `pause_timer`, `resume_timer`, `stop_timer` |
 
 Règles calculées (non stockées) : **retard** = échéance passée et statut ≠ Terminé ;
 **avancement** = tâches terminées / total (`src/lib/domain.ts`). Les statistiques (par semaine,
-par statut, par membre) sont calculées côté client dans `src/lib/stats.ts`, à partir des tâches
+par statut, par membre) et la feuille de temps (travail par personne et par jour, pauses à part,
+`src/lib/time.ts`) sont calculées côté client dans `src/lib/stats.ts`, à partir des tâches
 que la RLS rend visibles : un collaborateur ne voit que les chiffres de ses projets.
 
 ## Permissions (RLS)

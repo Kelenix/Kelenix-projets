@@ -167,6 +167,12 @@ begin
     ('b0000000-0000-0000-0000-000000000150', ines, today - interval '77 days' + interval '9 hours', today - interval '77 days' + interval '16 hours'),
     ('b0000000-0000-0000-0000-000000000151', ines, today - interval '63 days' + interval '10 hours', today - interval '63 days' + interval '13 hours');
 
+  -- Pauses (comptées à part du temps de travail).
+  insert into public.time_entries (task_id, user_id, started_at, ended_at, kind) values
+    ('b0000000-0000-0000-0000-000000000105', sam, today - interval '2 days' + interval '11 hours 30 minutes', today - interval '2 days' + interval '11 hours 50 minutes', 'pause'),
+    ('b0000000-0000-0000-0000-000000000105', sam, today - interval '1 day' + interval '16 hours', today - interval '1 day' + interval '16 hours 10 minutes', 'pause'),
+    ('b0000000-0000-0000-0000-000000000122', karim, today - interval '3 days' + interval '12 hours', today - interval '3 days' + interval '13 hours', 'pause');
+
   -- Un chronomètre en cours (Inès sur « Optimisation des images »), si elle n'en a pas déjà un.
   insert into public.time_entries (task_id, user_id, started_at)
   select 'b0000000-0000-0000-0000-000000000108', ines, now() - interval '25 minutes'

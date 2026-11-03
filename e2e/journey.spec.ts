@@ -108,6 +108,9 @@ test("parcours complet du propriétaire", async ({ page }) => {
   await expect(people.getByRole("listitem")).toHaveCount(1)
   await expect(people).toContainText("AM")
   await recipeCard.getByRole("button", { name: "Mettre en pause « Rédiger le cahier de recette »" }).click()
+  await expect(people).toContainText("en pause depuis")
+  await recipeCard.getByRole("button", { name: "Reprendre « Rédiger le cahier de recette »" }).click()
+  await recipeCard.getByRole("button", { name: "Terminer la session sur « Rédiger le cahier de recette »" }).click()
   await expect(recipeCard.getByRole("button", { name: /^Démarrer le chrono/ })).toBeVisible()
   await expect(people.getByRole("listitem")).toHaveCount(1)
 

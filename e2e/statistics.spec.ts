@@ -7,7 +7,7 @@ test("statistiques : graphiques et tableau par membre, mis à jour en direct", a
 
   await expect(page.getByRole("region", { name: "Tâches terminées par semaine" })).toBeVisible()
   await expect(page.getByRole("group", { name: "Répartition des tâches par statut" })).toBeVisible()
-  const table = page.getByRole("table")
+  const table = page.getByRole("table", { name: "Charge et avancement de chaque membre" })
   await expect(table.getByRole("rowheader", { name: /Alex Martin \(démo\)/ })).toBeVisible()
   await expect(table.getByRole("rowheader", { name: "Sam Leroy (démo)" })).toBeVisible()
 

@@ -39,6 +39,8 @@ test("parcours principal", async ({ page }) => {
   await page.getByRole("dialog").getByRole("button", { name: "Créer la tâche" }).click()
   await page.getByRole("button", { name: /^Démarrer le chrono sur « Tâche de préproduction/ }).click()
   await page.getByRole("button", { name: /^Mettre en pause « Tâche de préproduction/ }).click()
+  await page.getByRole("button", { name: /^Reprendre « Tâche de préproduction/ }).click()
+  await page.getByRole("button", { name: /^Terminer la session sur « Tâche de préproduction/ }).click()
 
   await page.reload()
   await expect(page.locator("#contenu").getByText("Tâche de préproduction")).toBeVisible()

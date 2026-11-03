@@ -5,6 +5,16 @@
 
 ---
 
+## ADR-015 — Feuille de temps quotidienne et pauses mesurées
+
+- **Date** : 2026-11-03
+- **Statut** : Accepté (demande de l'utilisateur)
+- **Décideur** : Claude (rôles : product-owner, database-architect)
+- **Contexte** : Besoin de voir le temps passé par jour et par personne sur un projet ou une tâche, et de distinguer les pauses du travail.
+- **Décision** : `time_entries.kind` (`work` | `pause`). Pause = fin de la session de travail + ouverture d'une session de pause sur la même tâche ; Reprendre = l'inverse ; Terminer = fermeture. Toujours une seule session ouverte par personne, horodatée par le serveur. Feuille de temps hebdomadaire (lundi → dimanche, navigation) dans l'espace projet (filtre par tâche), le détail d'une tâche et les Statistiques ; les sessions à cheval sur minuit sont réparties sur les deux jours. Les pauses ne comptent jamais comme travail.
+- **Alternatives écartées** : Déduire les pauses des trous entre sessions — confond pause et fin de journée.
+- **Impact** : fonctionnel / données (colonne ajoutée avec valeur par défaut, sans perte)
+
 ## ADR-014 — Pipeline en 8 étapes, image unique, cohabitation avec le nginx du VPS
 
 - **Date** : 2026-11-03

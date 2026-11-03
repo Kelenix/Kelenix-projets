@@ -339,6 +339,7 @@ export type Database = {
         Row: {
           ended_at: string | null
           id: string
+          kind: string
           started_at: string
           task_id: string
           user_id: string
@@ -347,6 +348,7 @@ export type Database = {
         Insert: {
           ended_at?: string | null
           id?: string
+          kind?: string
           started_at?: string
           task_id: string
           user_id?: string
@@ -354,6 +356,7 @@ export type Database = {
         Update: {
           ended_at?: string | null
           id?: string
+          kind?: string
           started_at?: string
           task_id?: string
           user_id?: string
@@ -384,7 +387,9 @@ export type Database = {
       can_access_task: { Args: { p_task_id: string }; Returns: boolean }
       is_owner: { Args: Record<PropertyKey, never>; Returns: boolean }
       pause_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
+      resume_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
       start_timer: { Args: { p_task_id: string }; Returns: undefined }
+      stop_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
     }
     Enums: {
       app_role: "owner" | "collaborator"

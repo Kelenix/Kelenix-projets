@@ -86,7 +86,7 @@ export function useTasks() {
       const rows = await fetchAll((from, to) =>
         getSupabase()
           .from("tasks")
-          .select("*, task_checklist_items(id, label, done), time_entries(user_id, started_at, ended_at)")
+          .select("*, task_checklist_items(id, label, done), time_entries(user_id, started_at, ended_at, kind)")
           .order("created_at")
           .order("id")
           .order("created_at", { referencedTable: "task_checklist_items" })
@@ -266,25 +266,30 @@ export function useAddTaskItem<T extends DetailTable>(table: T, taskId: string) 
   )
 }
 
+export type TimerAction = { type: "start"; taskId: string } | { type: "pause" | "resume" | "stop"; taskId: string }
+
 /**
- * Démarre (sur `taskId`) ou met en pause (`taskId` null) le chronomètre de l'utilisateur.
- * Optimiste : un seul chronomètre en cours par personne, comme en base.
+ * Chronomètre de l'utilisateur : démarrer, mettre en pause (temps de pause compté à part),
+ * reprendre, terminer. Optimiste : une seule session ouverte par personne, comme en base.
  */
 export function useTimer(userId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (taskId: string | null) => {
+    mutationFn: async (action: TimerAction) => {
       const supabase = getSupabase()
-      return unwrap(await (taskId ? supabase.rpc("start_timer", { p_task_id: taskId }) : supabase.rpc("pause_timer")))
+      if (action.type === "start") return unwrap(await supabase.rpc("start_timer", { p_task_id: action.taskId }))
+      const rpc = { pause: "pause_timer", resume: "resume_timer", stop: "stop_timer" } as const
+      return unwrap(await supabase.rpc(rpc[action.type]))
     },
-    onMutate: async (taskId) => {
+    onMutate: async (action) => {
       await queryClient.cancelQueries({ queryKey: keys.tasks })
       const previous = queryClient.getQueryData<Task[]>(keys.tasks)
       const now = new Date().toISOString()
+      const next = action.type === "start" || action.type === "resume" ? "work" : action.type === "pause" ? "pause" : null
       queryClient.setQueryData<Task[]>(keys.tasks, (tasks) =>
         tasks?.map((t) => {
           const entries = t.time_entries.map((e) => (e.user_id === userId && !e.ended_at ? { ...e, ended_at: now } : e))
-          if (t.id === taskId) entries.push({ user_id: userId, started_at: now, ended_at: null })
+          if (next && t.id === action.taskId) entries.push({ user_id: userId, started_at: now, ended_at: null, kind: next })
           return { ...t, time_entries: entries }
         })
       )
