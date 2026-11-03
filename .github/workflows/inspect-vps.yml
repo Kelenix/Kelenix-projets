@@ -34,8 +34,7 @@ jobs:
           echo "== Charge"; uptime; free -m; swapon --show 2>/dev/null
           echo "== Consommation des conteneurs"; docker stats --no-stream --format '{{.Name}} | CPU {{.CPUPerc}} | RAM {{.MemUsage}}' 2>/dev/null
           echo "== Processus les plus gourmands"; ps -eo pid,comm,%cpu,%mem,rss --sort=-%mem | head -15
-          echo "== Temps de réponse local"; for u in http://127.0.0.1:18080/login http://127.0.0.1:18080/auth/v1/health; do curl -s -o /dev/null -w "$u %{http_code} %{time_total}s
-" --max-time 10 "$u"; done
+          echo "== Temps de réponse local"; for u in http://127.0.0.1:18080/login http://127.0.0.1:18080/auth/v1/health; do curl -s -o /dev/null -w "$u %{http_code} %{time_total}s" --max-time 10 "$u"; echo; done
           EOF
           echo "Rapport généré ($(wc -l < report.txt) lignes)."
       - uses: actions/upload-artifact@v4
