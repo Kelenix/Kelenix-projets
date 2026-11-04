@@ -99,7 +99,9 @@ export function TaskTime({ task, profiles, className }: { task: Task; profiles: 
                     {row.paused && (
                       <span className={cn("inline-flex items-center gap-0.5", long ? "text-destructive" : "text-[oklch(0.5_0.14_55)]")}>
                         {long ? <TriangleAlert className="size-3" aria-hidden /> : <Coffee className="size-3" aria-hidden />}
-                        <span className="sr-only">{long ? "pause anormalement longue depuis" : "en pause depuis"}</span>
+                        <span className="sr-only">{long ? "pause anormalement longue :" : "en pause :"}</span>
+                        {/* Motif visible de tous les membres du projet, pas seulement au survol. */}
+                        <span className="font-medium">{reason?.label}</span>
                         {formatDuration(row.currentPauseMs, true)}
                       </span>
                     )}

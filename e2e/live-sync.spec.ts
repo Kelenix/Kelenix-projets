@@ -32,3 +32,25 @@ test("synchronisation : un changement fait par un collaborateur apparaît chez l
   await collaborator.getByRole("menuitemradio", { name: original }).click()
   await expect(owner.getByRole("region", { name: new RegExp(`^${original}`) }).getByRole("button", { name: title, exact: true })).toBeVisible({ timeout: 15_000 })
 })
+
+test("pause : le motif de la pause en cours est visible des autres membres du projet", async ({ browser }) => {
+  test.setTimeout(120_000)
+  const owner = await (await browser.newContext()).newPage()
+  const collaborator = await (await browser.newContext()).newPage()
+  await login(owner, OWNER)
+  await login(collaborator, COLLABORATOR)
+  await openProject(owner)
+  await openProject(collaborator)
+
+  await collaborator.getByRole("button", { name: `Démarrer le chrono sur « ${title} »` }).click()
+  await collaborator.getByRole("button", { name: `Mettre en pause « ${title} »` }).click()
+  await collaborator.getByRole("menuitem", { name: /^Repas/ }).click()
+
+  // Chez l'administrateur : la puce du collaborateur affiche « Repas », sans actualiser.
+  const card = owner.locator('[aria-roledescription="tâche déplaçable"]', { hasText: title })
+  const chip = card.getByRole("list", { name: "Temps passé par intervenant" }).getByRole("listitem").filter({ hasText: "SL" })
+  await expect(chip).toContainText("Repas", { timeout: 15_000 })
+
+  await collaborator.getByRole("button", { name: `Terminer la session sur « ${title} »` }).click()
+  await expect(chip).not.toContainText("Repas", { timeout: 15_000 })
+})

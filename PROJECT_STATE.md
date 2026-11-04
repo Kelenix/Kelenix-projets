@@ -59,6 +59,7 @@
 
 ## Journal de session
 
+- 2026-11-04 — Pause en cours et son motif visibles de tous les membres du projet (historique des pauses toujours restreint).
 - 2026-11-04 — Synchronisation entre navigateurs (4 s, sans actualiser) ; chronomètre des cartes : compteur du jour remis à zéro à minuit.
 - 2026-11-04 — Espace financier personnel (administrateurs) : revenus variables, répartition personnalisable et historisée, dépenses ponctuelles et récurrentes, fonds d'urgence, investissements, reports, objectifs, alertes, prévisions, historique 12 mois avec exports, 7 graphiques ; mode sombre pour tout le site.
 - 2026-11-04 — Rapports : heures (quotidien / hebdomadaire / mensuel), par projet, tâche, collaborateur, pauses par motif, estimé vs réel ; filtres période / collaborateur / projet / tâche / statut ; exports Excel, CSV et PDF.

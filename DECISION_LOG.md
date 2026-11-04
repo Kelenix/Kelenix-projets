@@ -5,6 +5,17 @@
 
 ---
 
+## ADR-023 — Pause en cours visible des membres du projet
+
+- **Date** : 2026-11-04
+- **Statut** : Accepté (précise ADR-018)
+- **Décideur** : Claude, à la demande de l'utilisateur
+- **Contexte** : Les membres d'un projet doivent voir qui est en pause et pour quel motif, dans les deux sens.
+- **Décision** : la RLS de `time_entries` laisse voir à tous les membres du projet la **pause en cours** (`ended_at is null`) et son motif ; l'**historique des pauses terminées** reste réservé à son auteur, aux chefs du projet et aux administrateurs. Le motif s'affiche en clair dans la puce du chronomètre.
+- **Impact** : fonctionnel + confidentialité (périmètre élargi à la seule pause en cours)
+
+---
+
 ## ADR-022 — Synchronisation entre navigateurs par compteur de version
 
 - **Date** : 2026-11-04

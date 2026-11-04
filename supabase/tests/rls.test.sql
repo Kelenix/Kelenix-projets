@@ -1,6 +1,6 @@
 -- Tests RLS (pgTAP) : `pnpm test:db`. S'appuie sur les comptes de démo de seed.sql.
 begin;
-select plan(69);
+select plan(70);
 
 create temp table projects_all_for_test on commit drop as select id from public.projects;
 grant select on projects_all_for_test to authenticated;
@@ -228,11 +228,19 @@ select isnt_empty(
   'chef de projet : fixe le budget d''heures de son projet'
 );
 
--- Retour au collaborateur : les pauses des autres restent privées.
+-- Le chef de projet repart en pause « repas », sans la terminer.
+select public.start_timer((select id from own_task_for_test));
+select public.pause_timer('meal');
+
+-- Retour au collaborateur : la pause en cours est visible, l'historique des pauses reste privé.
 select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
 select is_empty(
-  $$select id from public.time_entries where user_id = '55555555-5555-5555-5555-555555555555' and kind = 'pause'$$,
-  'collaborateur : ne voit pas les pauses des autres'
+  $$select id from public.time_entries where user_id = '55555555-5555-5555-5555-555555555555' and kind = 'pause' and ended_at is not null$$,
+  'collaborateur : ne voit pas l''historique des pauses des autres'
+);
+select is(
+  (select pause_reason from public.time_entries where user_id = '55555555-5555-5555-5555-555555555555' and kind = 'pause' and ended_at is null),
+  'meal', 'collaborateur : voit la pause en cours d''un membre du projet et son motif'
 );
 select isnt_empty(
   $$select id from public.time_entries where user_id = '55555555-5555-5555-5555-555555555555' and kind = 'work'$$,
