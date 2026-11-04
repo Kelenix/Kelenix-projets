@@ -3,6 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query"
 import {
   ChartColumn,
+  FileSpreadsheet,
   CheckSquare,
   FolderKanban,
   LayoutDashboard,
@@ -38,6 +39,7 @@ import { MyTasksSection } from "./my-tasks"
 import { OverviewSection } from "./overview"
 import { ProjectsSection } from "./projects"
 import { Search } from "./search"
+import { ReportsSection } from "./reports"
 import { StatisticsSection } from "./statistics"
 import { useDashboard, type Section } from "./state"
 
@@ -47,6 +49,7 @@ const NAV: { section: Section; label: string; icon: LucideIcon }[] = [
   { section: "tasks", label: "Mes tâches", icon: CheckSquare },
   { section: "clients", label: "Clients", icon: Users },
   { section: "stats", label: "Statistiques", icon: ChartColumn },
+  { section: "reports", label: "Rapports", icon: FileSpreadsheet },
 ]
 
 export function Shell() {
@@ -57,6 +60,7 @@ export function Shell() {
     tasks: MyTasksSection,
     clients: ClientsSection,
     stats: StatisticsSection,
+    reports: ReportsSection,
   }[section]
 
   return (
@@ -234,7 +238,7 @@ function Topbar() {
   const title = project?.name ?? NAV.find((n) => n.section === section)!.label
 
   const create =
-    section === "stats"
+    section === "stats" || section === "reports"
       ? null
       : section === "clients"
         ? isOwner && { label: "Nouveau client", onClick: () => openDialog({ type: "client" }) }
@@ -268,7 +272,7 @@ function MobileNav() {
   return (
     <nav
       aria-label="Navigation principale"
-      className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       {NAV.map(({ section: target, label, icon: Icon }) => (
         <button

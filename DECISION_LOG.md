@@ -5,6 +5,22 @@
 
 ---
 
+## ADR-020 — Rapports et exports Excel / CSV / PDF côté navigateur
+
+- **Date** : 2026-11-04
+- **Statut** : Accepté
+- **Décideur** : Claude (rôle : solution-architect)
+- **Contexte** : Demande « Rapports et statistiques » (63–72) : rapports d'heures (jour / semaine / mois), par projet, tâche, collaborateur, pauses, estimé vs réel ; exports Excel, CSV et PDF ; filtres période / collaborateur / projet / tâche / statut.
+- **Décision** :
+  - Section « Rapports » ; calcul des rapports dans `src/lib/reports.ts` (fonctions pures testées), à partir des données déjà chargées et donc déjà filtrées par la RLS.
+  - Exports générés dans le navigateur, bibliothèques chargées seulement au clic : `write-excel-file` (Excel), `jspdf` + `jspdf-autotable` (PDF), CSV écrit à la main (séparateur « ; », virgule décimale, UTF-8 avec BOM pour Excel en français). Durées exportées en heures décimales dans Excel / CSV.
+  - Mêmes droits que les statistiques : sans accès aux rapports d'équipe (ni chef du projet filtré), uniquement ses propres chiffres ; les pauses des autres restent masquées par la RLS.
+- **Alternatives écartées** : génération côté serveur (charge supplémentaire sur un VPS déjà saturé en mémoire) ; SheetJS `xlsx` (version npm non maintenue, vulnérabilités connues).
+- **Conséquences** : aucune charge serveur ; le « réel » du rapport estimé / réel est cumulé sur toute la durée de la tâche (indiqué dans le rapport).
+- **Impact** : fonctionnel
+
+---
+
 ## ADR-019 — Suivi des projets : budget d'heures, alertes, jalons
 
 - **Date** : 2026-11-04

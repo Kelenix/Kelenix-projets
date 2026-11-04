@@ -3,7 +3,7 @@ import { isLongPause, type Task, type TimeEntry } from "@/lib/domain"
 const isWork = (e: TimeEntry) => e.kind !== "pause"
 
 /** Durée d'une session, éventuellement limitée à l'intervalle [from, to[. */
-const entryMs = (e: TimeEntry, now: number, from = 0, to = Infinity) => {
+export const entryMs = (e: TimeEntry, now: number, from = 0, to = Infinity) => {
   const start = Math.max(new Date(e.started_at).getTime(), from)
   const end = Math.min(e.ended_at ? new Date(e.ended_at).getTime() : now, to)
   return Math.max(0, end - start)
