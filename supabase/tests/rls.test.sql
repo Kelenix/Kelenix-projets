@@ -1,6 +1,6 @@
 -- Tests RLS (pgTAP) : `pnpm test:db`. S'appuie sur les comptes de démo de seed.sql.
 begin;
-select plan(67);
+select plan(69);
 
 create temp table projects_all_for_test on commit drop as select id from public.projects;
 grant select on projects_all_for_test to authenticated;
@@ -320,10 +320,16 @@ select throws_ok(
   '42501', null, 'finances : espace réservé aux administrateurs'
 );
 
+-- Synchronisation entre navigateurs : la version avance à chaque modification.
+create temp table version_for_test on commit drop as select public.data_version() as v;
+update public.tasks set title = title where title = 'Rédiger les mentions légales';
+select cmp_ok(public.data_version(), '>', (select v from version_for_test), 'synchronisation : une modification fait avancer la version des données');
+
 -- Anonyme : aucun accès.
 reset role;
 set local role anon;
 select is_empty($$select id from public.projects$$, 'anonyme : aucun projet visible');
+select throws_ok($$select public.data_version()$$, '42501', null, 'anonyme : version des données inaccessible');
 
 select * from finish();
 rollback;

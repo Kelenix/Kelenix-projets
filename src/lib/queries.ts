@@ -1,6 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query"
+import { useEffect, useRef } from "react"
 import { toast } from "sonner"
 import type { TablesInsert, TablesUpdate } from "@/lib/database.types"
 import type { Client, Milestone, PauseReason, Profile, Project, ProjectRole, Task } from "@/lib/domain"
@@ -519,4 +520,29 @@ export function useDeleteMilestone(projectId: string) {
     () => [milestoneKey(projectId)],
     "Jalon supprimé."
   )
+}
+
+// ─── Synchronisation entre navigateurs ─────────────────────────────────────
+/**
+ * Recharge les données partagées dès qu'un autre utilisateur modifie quelque chose : la base
+ * tient un compteur de modifications, consulté toutes les `intervalMs` (requête minime, en pause
+ * quand l'onglet est en arrière-plan, relancée au retour sur l'onglet).
+ */
+export function useLiveSync(intervalMs = 4000) {
+  const queryClient = useQueryClient()
+  const last = useRef<number | null>(null)
+  const { data: version } = useQuery({
+    queryKey: ["data-version"],
+    queryFn: async () => Number(unwrap(await getSupabase().rpc("data_version"))),
+    refetchInterval: intervalMs,
+    staleTime: 0,
+    retry: false,
+  })
+  useEffect(() => {
+    if (version === undefined) return
+    if (last.current !== null && version !== last.current)
+      for (const queryKey of [keys.projects, keys.tasks, keys.clients, keys.profiles, ["task-details"], ["time-changes"], ["milestones"]])
+        queryClient.invalidateQueries({ queryKey })
+    last.current = version
+  }, [version, queryClient])
 }

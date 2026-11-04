@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation"
 import { createContext, useContext, useState, type ReactNode } from "react"
 import type { Client, Profile, Project } from "@/lib/domain"
-import { useProfiles, useProjects } from "@/lib/queries"
+import { useLiveSync, useProfiles, useProjects } from "@/lib/queries"
 
 export type Section = "overview" | "projects" | "tasks" | "clients" | "stats" | "reports" | "finance"
 const SECTIONS: Section[] = ["overview", "projects", "tasks", "clients", "stats", "reports", "finance"]
@@ -40,6 +40,8 @@ const Context = createContext<DashboardContext | null>(null)
 export function DashboardProvider({ viewer, children }: { viewer: Profile; children: ReactNode }) {
   const params = useSearchParams()
   const [dialog, openDialog] = useState<DialogState>(null)
+  // Les changements des autres utilisateurs apparaissent sans actualiser la page.
+  useLiveSync()
   const { data: projects } = useProjects()
   const { data: profiles } = useProfiles()
   // Profil à jour (un accès accordé pendant la session s'applique sans recharger la page).

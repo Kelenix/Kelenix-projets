@@ -1060,6 +1060,7 @@ export type Database = {
         Args: { p_ended_at: string; p_ignore: string; p_started_at: string; p_user: string }
         Returns: undefined
       }
+      data_version: { Args: Record<PropertyKey, never>; Returns: number }
       edit_time_entry: {
         Args: { p_ended_at: string; p_id: string; p_reason: string; p_started_at: string }
         Returns: undefined

@@ -5,6 +5,19 @@
 
 ---
 
+## ADR-022 — Synchronisation entre navigateurs par compteur de version
+
+- **Date** : 2026-11-04
+- **Statut** : Accepté
+- **Décideur** : Claude (rôle : solution-architect)
+- **Contexte** : Les changements d'un collaborateur (ex. tâche déplacée) n'apparaissaient chez les autres qu'après actualisation de la page.
+- **Décision** : séquence `data_version_seq` avancée par des triggers (niveau instruction) sur toutes les tables partagées ; fonction `data_version()` consultée par chaque navigateur toutes les 4 s (en pause quand l'onglet est caché) ; changement de version → rechargement des données concernées.
+- **Alternatives écartées** : service Supabase Realtime (150 à 200 Mo de mémoire en plus sur un serveur déjà saturé) ; rechargement complet à intervalle fixe (transfert de toutes les tâches toutes les quelques secondes).
+- **Conséquences** : délai de propagation de 4 s au plus ; coût serveur négligeable (une requête minime par onglet visible) ; la version ne révèle aucune donnée.
+- **Impact** : technique
+
+---
+
 ## ADR-021 — Espace financier personnel
 
 - **Date** : 2026-11-04

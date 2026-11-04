@@ -39,7 +39,7 @@
 
 ## Limites connues (V1)
 
-- Pas de mise à jour en temps réel entre utilisateurs : les données d'un collègue apparaissent au rechargement des listes (retour sur l'onglet, actualisation, ou après 30 s lors d'une action).
+- Synchronisation entre utilisateurs en 4 s au plus (pas de temps réel instantané, ADR-022).
 - Pas de réinitialisation de mot de passe par e-mail (pas de SMTP) : un propriétaire peut retirer puis recréer un membre.
 - Le temps de travail d'un projet est visible de tous ses membres ; seules les pauses et les rapports d'équipe sont restreints (ADR-018).
 - Pas de réordonnancement des tâches à l'intérieur d'une colonne (tri par échéance puis priorité).
@@ -59,6 +59,7 @@
 
 ## Journal de session
 
+- 2026-11-04 — Synchronisation entre navigateurs (4 s, sans actualiser) ; chronomètre des cartes : compteur du jour remis à zéro à minuit.
 - 2026-11-04 — Espace financier personnel (administrateurs) : revenus variables, répartition personnalisable et historisée, dépenses ponctuelles et récurrentes, fonds d'urgence, investissements, reports, objectifs, alertes, prévisions, historique 12 mois avec exports, 7 graphiques ; mode sombre pour tout le site.
 - 2026-11-04 — Rapports : heures (quotidien / hebdomadaire / mensuel), par projet, tâche, collaborateur, pauses par motif, estimé vs réel ; filtres période / collaborateur / projet / tâche / statut ; exports Excel, CSV et PDF.
 - 2026-11-04 — Suivi des projets : budget d'heures avec alerte (80 % / dépassement), compteurs par statut de projet, tâches terminées / en cours / en retard par projet, jalons, charge de travail et tâches en dépassement dans les statistiques.
