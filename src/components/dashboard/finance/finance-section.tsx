@@ -66,7 +66,8 @@ export function FinanceSection() {
     >
       <Tabs value={tab} onValueChange={setTab} className="gap-5">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+          {/* Défilement horizontal seulement (mobile) : pas de barre verticale parasite. */}
+          <div className="-mx-4 overflow-x-auto overflow-y-hidden px-4 py-0.5 md:mx-0 md:px-0">
             <TabsList aria-label="Rubriques de l'espace financier" className="w-max">
               {TABS.map((t) => (
                 <TabsTrigger key={t.value} value={t.value}>
