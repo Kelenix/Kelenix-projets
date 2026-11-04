@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { isLongPause } from "./domain"
-import { currentActivity, estimateVsActual, overrunTasks, workload, formatDuration, periodBuckets, timeByUser, timeSince, timesheet, totals } from "./time"
+import { currentActivity, startOfDay, estimateVsActual, overrunTasks, workload, formatDuration, periodBuckets, timeByUser, timeSince, timesheet, totals } from "./time"
 
 const at = (min: number) => new Date(Date.UTC(2026, 10, 2, 9, min)).toISOString()
 const now = Date.parse(at(120))
@@ -186,5 +186,24 @@ describe("workload", () => {
       { userId: "a", open: 2, late: 1, remainingMs: 90 * 60_000, unestimated: 1 },
       { userId: "b", open: 0, late: 0, remainingMs: 0, unestimated: 0 },
     ])
+  })
+})
+
+describe("compteur du jour", () => {
+  it("repart de zéro à minuit : seule la part d'aujourd'hui d'une session commencée hier est comptée", () => {
+    const yesterday = (h: number) => new Date(2026, 10, 2, h).toISOString()
+    const today = (h: number, m = 0) => new Date(2026, 10, 3, h, m).toISOString()
+    const nowToday = Date.parse(today(10))
+    const [row] = timeByUser(
+      [
+        { user_id: "a", started_at: yesterday(9), ended_at: yesterday(14), kind: "work" },
+        { user_id: "a", started_at: yesterday(23), ended_at: today(1), kind: "work" },
+        { user_id: "a", started_at: today(9, 30), ended_at: null, kind: "work" },
+      ],
+      nowToday
+    )
+    expect(row!.ms).toBe((5 + 2) * 3_600_000 + 30 * 60_000)
+    expect(row!.todayMs).toBe(3_600_000 + 30 * 60_000)
+    expect(startOfDay(nowToday)).toBe(new Date(2026, 10, 3).getTime())
   })
 })

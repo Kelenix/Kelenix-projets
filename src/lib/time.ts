@@ -13,6 +13,8 @@ export type UserTime = {
   userId: string
   /** Temps de travail cumulé (ms), pauses exclues. */
   ms: number
+  /** Temps de travail depuis minuit (ms) : le compteur repart de zéro chaque jour. */
+  todayMs: number
   /** Temps de pause cumulé (ms). */
   pauseMs: number
   running: boolean
@@ -23,13 +25,21 @@ export type UserTime = {
   currentPause?: TimeEntry
 }
 
+/** Minuit (heure locale) du jour de `now`. */
+export const startOfDay = (now: number) => {
+  const d = new Date(now)
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+}
+
 /** Temps par personne (session en cours comprise) : travail en cours d'abord, puis en pause, puis par temps. */
 export function timeByUser(entries: TimeEntry[], now = Date.now()): UserTime[] {
   const totals = new Map<string, UserTime>()
+  const today = startOfDay(now)
   for (const e of entries) {
     const row = totals.get(e.user_id) ?? {
       userId: e.user_id,
       ms: 0,
+      todayMs: 0,
       pauseMs: 0,
       running: false,
       paused: false,
@@ -38,6 +48,7 @@ export function timeByUser(entries: TimeEntry[], now = Date.now()): UserTime[] {
     const ms = entryMs(e, now)
     if (isWork(e)) {
       row.ms += ms
+      row.todayMs += entryMs(e, now, today)
       row.running ||= e.ended_at === null
     } else {
       row.pauseMs += ms

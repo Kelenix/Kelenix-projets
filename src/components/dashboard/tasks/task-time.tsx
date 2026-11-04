@@ -68,7 +68,9 @@ export function TaskTime({ task, profiles, className }: { task: Task; profiles: 
       <ul aria-label="Temps passé par intervenant" className="flex min-w-0 flex-1 flex-wrap gap-1.5">
         {rows.map((row) => {
           const name = profiles.get(row.userId)?.full_name ?? "Ancien membre"
-          const work = formatDuration(row.ms, row.running)
+          // Compteur du jour : il repart de zéro à minuit ; le cumul reste dans l'info-bulle.
+          const work = formatDuration(row.todayMs, row.running)
+          const total = formatDuration(row.ms)
           const reason = row.currentPause && PAUSE_REASONS[pauseReasonOf(row.currentPause)]
           const long = row.currentPause ? isLongPause(row.currentPause, now) : false
           return (
@@ -92,7 +94,8 @@ export function TaskTime({ task, profiles, className }: { task: Task; profiles: 
                       {initials(name)}
                     </span>
                     {row.running && <span aria-hidden className="size-1.5 animate-pulse rounded-full bg-success" />}
-                    {work}
+                    <span className="sr-only">Aujourd&apos;hui :</span>
+                    {row.todayMs === 0 && !row.running ? "0 min" : work}
                     {row.paused && (
                       <span className={cn("inline-flex items-center gap-0.5", long ? "text-destructive" : "text-[oklch(0.5_0.14_55)]")}>
                         {long ? <TriangleAlert className="size-3" aria-hidden /> : <Coffee className="size-3" aria-hidden />}
@@ -103,8 +106,8 @@ export function TaskTime({ task, profiles, className }: { task: Task; profiles: 
                   </span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {name} : {work} de travail
-                  {row.pauseMs > 0 && ` · ${formatDuration(row.pauseMs)} de pause`}
+                  {name} : {row.todayMs === 0 && !row.running ? "0 min" : work} aujourd&apos;hui · {total} au total sur la tâche
+                  {row.pauseMs > 0 && ` · ${formatDuration(row.pauseMs)} de pause au total`}
                   {row.running ? " (en cours)" : ""}
                   {reason && ` · en pause (${reason.label.toLowerCase()})`}
                   {long && reason && ` — plus de ${reason.maxMinutes} min, pause anormalement longue`}
