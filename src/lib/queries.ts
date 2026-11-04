@@ -14,6 +14,7 @@ export function errorMessage(error: unknown) {
   if (code === "42501") return "Vous n'avez pas les droits pour cette action."
   if (code === "P0001") return message
   if (code === "23514" || code === "22P02") return "Certaines informations sont invalides."
+  if (code === "23505") return "Cette information existe déjà (même date ou même élément)."
   if (message?.includes("Failed to fetch")) return "Connexion au serveur impossible. Réessayez."
   return message || "Une erreur inattendue est survenue."
 }

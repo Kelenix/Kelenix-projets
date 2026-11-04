@@ -1,16 +1,19 @@
 import { BRAND_FULL_NAME } from "@/lib/brand"
 import type { Column, Report, Row } from "@/lib/reports"
 import { toHours } from "@/lib/reports"
+import { formatMoney } from "@/lib/finance"
 import { formatDuration } from "@/lib/time"
 
 export type ExportFormat = "xlsx" | "csv" | "pdf"
 
 /** Libellé d'en-tête : les durées sont exportées en heures décimales. */
-const header = (c: Column) => (c.kind === "duration" ? `${c.label} (h)` : c.kind === "percent" ? `${c.label} (%)` : c.label)
+const header = (c: Column) =>
+  c.kind === "duration" ? `${c.label} (h)` : c.kind === "percent" ? `${c.label} (%)` : c.kind === "money" ? `${c.label} (€)` : c.label
 
 /** Valeur brute (tableur) : durées en heures décimales, nombres tels quels. */
 function raw(c: Column, value: Row[string]) {
   if (value === null || value === undefined || value === "") return null
+  if (c.kind === "money") return Number(value) / 100
   return c.kind === "duration" ? toHours(Number(value)) : value
 }
 
@@ -24,6 +27,7 @@ export function display(c: Column, value: Row[string]) {
     return (ms < 0 ? "-" : c.signed ? "+" : "") + formatDuration(Math.abs(ms))
   }
   if (c.kind === "percent") return `${value} %`
+  if (c.kind === "money") return formatMoney(Number(value)).replace(/[\u202f\u00a0]/g, " ") // espaces insécables absents de la police PDF
   return String(value)
 }
 
@@ -65,7 +69,7 @@ async function exportXlsx(report: Report, subtitle: string, fileName: string) {
         const total = report.total && i === all.length - 1
         if (value === null) return null
         return typeof value === "number"
-          ? { value, type: Number, format: c.kind === "duration" ? "0.00" : "0", ...(total ? bold : {}) }
+          ? { value, type: Number, format: c.kind === "duration" || c.kind === "money" ? "0.00" : "0", ...(total ? bold : {}) }
           : { value: String(value), ...(total ? bold : {}) }
       })
     ),

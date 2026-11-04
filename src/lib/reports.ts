@@ -30,7 +30,7 @@ export const GRANULARITIES: Record<Granularity, string> = { day: "Quotidien", we
 export type Column = {
   key: string
   label: string
-  kind: "text" | "duration" | "number" | "percent"
+  kind: "text" | "duration" | "number" | "percent" | "money"
   /** Durée signée (écart) : « +1 h 00 » ou « -10 min ». */
   signed?: boolean
 }

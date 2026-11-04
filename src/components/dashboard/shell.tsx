@@ -14,11 +14,13 @@ import {
   Settings,
   UserRound,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 import { Logo } from "@/components/logo"
+import { THEME_LABELS, useTheme, type Theme } from "@/components/theme"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,6 +28,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -35,6 +39,7 @@ import { useProfiles, useProjects } from "@/lib/queries"
 import { getSupabase } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { ClientsSection } from "./clients"
+import { FinanceSection } from "./finance/finance-section"
 import { MyTasksSection } from "./my-tasks"
 import { OverviewSection } from "./overview"
 import { ProjectsSection } from "./projects"
@@ -43,17 +48,25 @@ import { ReportsSection } from "./reports"
 import { StatisticsSection } from "./statistics"
 import { useDashboard, type Section } from "./state"
 
-const NAV: { section: Section; label: string; icon: LucideIcon }[] = [
-  { section: "overview", label: "Vue d'ensemble", icon: LayoutDashboard },
+// `short` : libellé de la barre de navigation mobile, où la place manque.
+const NAV: { section: Section; label: string; short?: string; icon: LucideIcon; adminOnly?: boolean }[] = [
+  { section: "overview", label: "Vue d'ensemble", short: "Accueil", icon: LayoutDashboard },
   { section: "projects", label: "Projets", icon: FolderKanban },
-  { section: "tasks", label: "Mes tâches", icon: CheckSquare },
+  { section: "tasks", label: "Mes tâches", short: "Tâches", icon: CheckSquare },
   { section: "clients", label: "Clients", icon: Users },
-  { section: "stats", label: "Statistiques", icon: ChartColumn },
+  { section: "stats", label: "Statistiques", short: "Stats", icon: ChartColumn },
   { section: "reports", label: "Rapports", icon: FileSpreadsheet },
+  // Espace financier personnel : réservé aux administrateurs, données privées à chacun.
+  { section: "finance", label: "Finances", icon: Wallet, adminOnly: true },
 ]
 
+function useNav() {
+  const { isOwner } = useDashboard()
+  return NAV.filter((n) => !n.adminOnly || isOwner)
+}
+
 export function Shell() {
-  const { section } = useDashboard()
+  const { section, isOwner } = useDashboard()
   const Content = {
     overview: OverviewSection,
     projects: ProjectsSection,
@@ -61,6 +74,7 @@ export function Shell() {
     clients: ClientsSection,
     stats: StatisticsSection,
     reports: ReportsSection,
+    finance: isOwner ? FinanceSection : OverviewSection,
   }[section]
 
   return (
@@ -101,6 +115,7 @@ function useCollapsed() {
 
 function Sidebar() {
   const { section, navigate, openDialog, isOwner } = useDashboard()
+  const nav = useNav()
   const [collapsed, toggle] = useCollapsed()
   const teamLabel = isOwner ? "Équipe et paramètres" : "Équipe"
 
@@ -136,7 +151,7 @@ function Sidebar() {
         </Button>
       </div>
       <nav aria-label="Navigation principale" className="flex flex-col gap-1">
-        {NAV.map(({ section: target, label, icon: Icon }) => (
+        {nav.map(({ section: target, label, icon: Icon }) => (
           <span key={target} className="contents">
             {withTooltip(
               label,
@@ -181,6 +196,7 @@ function Sidebar() {
 
 function ProfileMenu({ compact = false }: { compact?: boolean }) {
   const { viewer: initialViewer, openDialog } = useDashboard()
+  const { theme, choose } = useTheme()
   const { data: profiles } = useProfiles()
   const viewer = profiles?.find((p) => p.id === initialViewer.id) ?? initialViewer
   const queryClient = useQueryClient()
@@ -223,6 +239,16 @@ function ProfileMenu({ compact = false }: { compact?: boolean }) {
             <Settings /> Équipe et paramètres
           </DropdownMenuItem>
         )}
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">Thème</DropdownMenuLabel>
+        <DropdownMenuRadioGroup value={theme} onValueChange={(v) => choose(v as Theme)}>
+          {(Object.keys(THEME_LABELS) as Theme[]).map((t) => (
+            <DropdownMenuRadioItem key={t} value={t} onSelect={(e) => e.preventDefault()}>
+              {THEME_LABELS[t]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+        <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={signOut}>
           <LogOut /> Se déconnecter
         </DropdownMenuItem>
@@ -238,7 +264,7 @@ function Topbar() {
   const title = project?.name ?? NAV.find((n) => n.section === section)!.label
 
   const create =
-    section === "stats" || section === "reports"
+    section === "stats" || section === "reports" || section === "finance"
       ? null
       : section === "clients"
         ? isOwner && { label: "Nouveau client", onClick: () => openDialog({ type: "client" }) }
@@ -269,12 +295,14 @@ function Topbar() {
 
 function MobileNav() {
   const { section, navigate } = useDashboard()
+  const nav = useNav()
   return (
     <nav
       aria-label="Navigation principale"
-      className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-6 border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
+      style={{ gridTemplateColumns: `repeat(${nav.length}, minmax(0, 1fr))` }}
+      className="fixed inset-x-0 bottom-0 z-30 grid border-t bg-card pb-[env(safe-area-inset-bottom)] md:hidden"
     >
-      {NAV.map(({ section: target, label, icon: Icon }) => (
+      {nav.map(({ section: target, label, short, icon: Icon }) => (
         <button
           key={target}
           type="button"
@@ -286,7 +314,14 @@ function MobileNav() {
           )}
         >
           <Icon className="size-5" aria-hidden />
-          {label}
+          {short ? (
+            <>
+              <span aria-hidden>{short}</span>
+              <span className="sr-only">{label}</span>
+            </>
+          ) : (
+            label
+          )}
         </button>
       ))}
     </nav>

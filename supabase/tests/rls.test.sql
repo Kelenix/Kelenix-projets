@@ -1,6 +1,6 @@
 -- Tests RLS (pgTAP) : `pnpm test:db`. S'appuie sur les comptes de démo de seed.sql.
 begin;
-select plan(61);
+select plan(67);
 
 create temp table projects_all_for_test on commit drop as select id from public.projects;
 grant select on projects_all_for_test to authenticated;
@@ -291,6 +291,34 @@ update public.tasks set status = 'done' where title = 'Rédiger les mentions lé
 select isnt((select completed_at from public.tasks where title = 'Rédiger les mentions légales'), null, 'terminer une tâche renseigne sa date de fin');
 update public.tasks set status = 'todo' where title = 'Rédiger les mentions légales';
 select is((select completed_at from public.tasks where title = 'Rédiger les mentions légales'), null, 'rouvrir une tâche efface sa date de fin');
+
+-- Finances personnelles : propres à chaque administrateur.
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+select lives_ok(
+  $$insert into public.fin_incomes (amount_cents, received_on, source) values (140000, current_date, 'Salaire')$$,
+  'finances : l''administrateur enregistre un revenu'
+);
+select throws_ok(
+  $$insert into public.fin_allocation_rules (month, scope, growth, stability, essentials, reward)
+    values (date_trunc('month', current_date), 'from', 30, 15, 50, 10)$$,
+  '23514', null, 'finances : une répartition doit totaliser 100 %'
+);
+select throws_ok(
+  $$insert into public.fin_investment_movements (asset_id, kind, amount_cents, occurred_on)
+    values (gen_random_uuid(), 'contribution', 1000, current_date)$$,
+  '23503', null, 'finances : un versement doit viser un de ses propres actifs'
+);
+select throws_ok(
+  $$insert into public.fin_incomes (user_id, amount_cents, received_on, source)
+    values ('22222222-2222-2222-2222-222222222222', 100, current_date, 'Intrus')$$,
+  '42501', null, 'finances : impossible d''écrire au nom d''un autre utilisateur'
+);
+select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
+select is_empty($$select id from public.fin_incomes$$, 'finances : un collaborateur ne voit aucune donnée financière');
+select throws_ok(
+  $$insert into public.fin_incomes (amount_cents, received_on, source) values (100, current_date, 'Test')$$,
+  '42501', null, 'finances : espace réservé aux administrateurs'
+);
 
 -- Anonyme : aucun accès.
 reset role;

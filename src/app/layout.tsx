@@ -20,9 +20,15 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // Lue à chaque requête : la clé publique dépend de l'environnement (préproduction, production).
   await connection()
   return (
-    <html lang="fr" className={`${inter.variable} h-full antialiased`}>
+    <html lang="fr" className={`${inter.variable} h-full antialiased`} suppressHydrationWarning>
       <head>
         <meta name="supabase-anon-key" content={serverConfig().anonKey} />
+        {/* Thème choisi appliqué avant l'affichage (évite un éclair de clair en mode sombre). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var t=localStorage.getItem("kelenix-theme");if(t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches))document.documentElement.classList.add("dark")}catch(e){}`,
+          }}
+        />
       </head>
       <body className="min-h-full">
         {children}

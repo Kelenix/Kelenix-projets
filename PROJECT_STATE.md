@@ -59,6 +59,7 @@
 
 ## Journal de session
 
+- 2026-11-04 — Espace financier personnel (administrateurs) : revenus variables, répartition personnalisable et historisée, dépenses ponctuelles et récurrentes, fonds d'urgence, investissements, reports, objectifs, alertes, prévisions, historique 12 mois avec exports, 7 graphiques ; mode sombre pour tout le site.
 - 2026-11-04 — Rapports : heures (quotidien / hebdomadaire / mensuel), par projet, tâche, collaborateur, pauses par motif, estimé vs réel ; filtres période / collaborateur / projet / tâche / statut ; exports Excel, CSV et PDF.
 - 2026-11-04 — Suivi des projets : budget d'heures avec alerte (80 % / dépassement), compteurs par statut de projet, tâches terminées / en cours / en retard par projet, jalons, charge de travail et tâches en dépassement dans les statistiques.
 - 2026-11-03 — Cartes : actions directes sans ouvrir la tâche (statut, priorité, échéance, affectés, checklist, blocage, suppression), aussi en vue liste.

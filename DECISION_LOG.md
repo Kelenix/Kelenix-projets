@@ -5,6 +5,28 @@
 
 ---
 
+## ADR-021 — Espace financier personnel
+
+- **Date** : 2026-11-04
+- **Statut** : Accepté
+- **Décideur** : Claude (rôles : solution-architect, security, frontend)
+- **Contexte** : Espace privé de gestion financière personnelle (revenus variables, répartition 25 / 15 / 50 / 10 personnalisable, dépenses, fonds d'urgence, investissements, reports, objectifs, prévisions, historique 12 mois, graphiques, mode sombre).
+- **Décision** :
+  - **Accès** : section « Finances » réservée aux **administrateurs** ; chaque ligne appartient à un utilisateur et la RLS (`is_finance_user`) n'en donne l'accès qu'à lui — même un autre administrateur ne voit rien. Les collaborateurs ne voient ni l'entrée de menu ni les données.
+  - **Précision** : montants en **centimes entiers** (`bigint`), pourcentages `numeric(5,2)` avec contrainte « somme = 100 » en base ; répartition au centime par la méthode des plus grands restes (somme exacte, calcul entier).
+  - **Historique des règles** : `fin_allocation_rules` avec portée `from` (règle par défaut à partir d'un mois, les mois antérieurs gardent l'ancienne) et `only` (règle propre à un mois).
+  - **Budget d'un mois** = revenus reçus × règle + reports reçus du mois précédent ± transferts internes ; **consommé** = dépenses, plus versements d'épargne (Stabilité) et investissements avec frais (Croissance). Les transferts (`fin_transfers`) ne sont jamais des revenus : le total des budgets reste égal au total des revenus.
+  - **Croissance** : sommes investies (versements − retraits) toujours distinctes de la valeur renseignée ; gain estimé uniquement sur les actifs valorisés.
+  - **Récurrences** : modèles (`fin_recurring_expenses`) proposés chaque mois comme dépenses prévues, à confirmer (pas de tâche planifiée côté serveur) ; suspension, arrêt, suppression.
+  - **Prévisions** : revenu saisi par mois (`fin_forecasts`), sinon moyenne des 12 derniers mois **signalée comme estimation**.
+  - **Interface** : une section avec 9 onglets (pas de nouvelle page) ; graphiques **Recharts 3.10.1** aux couleurs du thème ; **mode sombre** ajouté à tout le site (clair par défaut, choix Clair / Sombre / Système dans le menu du profil) ; statut d'un mois déduit de la date (en cours / clôturé / à venir).
+  - Logique financière isolée dans `src/lib/finance.ts` (fonctions pures, testées) ; affichage dans `src/components/dashboard/finance/`.
+- **Alternatives écartées** : espace ouvert à tous les comptes (outil d'équipe : un espace personnel pour chaque collaborateur n'était pas demandé) ; montants en `numeric` manipulés en flottant côté client ; génération automatique des dépenses récurrentes par une tâche planifiée (charge sur un serveur déjà saturé, risque de doublons).
+- **Conséquences** : aucune donnée fictive en production ; un administrateur rétrogradé collaborateur conserve ses données mais n'y accède plus.
+- **Impact** : fonctionnel + sécurité
+
+---
+
 ## ADR-020 — Rapports et exports Excel / CSV / PDF côté navigateur
 
 - **Date** : 2026-11-04

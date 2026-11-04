@@ -51,6 +51,519 @@ export type Database = {
         }
         Relationships: []
       }
+      fin_allocation_rules: {
+        Row: {
+          created_at: string
+          essentials: number
+          growth: number
+          id: string
+          month: string
+          reward: number
+          scope: string
+          stability: number
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          essentials: number
+          growth: number
+          id?: string
+          month: string
+          reward: number
+          scope: string
+          stability: number
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          essentials?: number
+          growth?: number
+          id?: string
+          month?: string
+          reward?: number
+          scope?: string
+          stability?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_allocation_rules_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_asset_valuations: {
+        Row: {
+          asset_id: string
+          id: string
+          user_id: string
+          value_cents: number
+          valued_on: string
+        }
+        ComputedFields: never
+        Insert: {
+          asset_id: string
+          id?: string
+          user_id?: string
+          value_cents: number
+          valued_on: string
+        }
+        Update: {
+          asset_id?: string
+          id?: string
+          user_id?: string
+          value_cents?: number
+          valued_on?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_asset_valuations_asset_id_user_id_fkey"
+            columns: ["asset_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "fin_assets"
+            referencedColumns: ["id", "user_id"]
+          },
+          {
+            foreignKeyName: "fin_asset_valuations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_assets: {
+        Row: {
+          asset_type: string
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          asset_type: string
+          created_at?: string
+          id?: string
+          name: string
+          user_id?: string
+        }
+        Update: {
+          asset_type?: string
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_assets_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_expenses: {
+        Row: {
+          amount_cents: number
+          category: Database["public"]["Enums"]["fin_category"]
+          created_at: string
+          description: string
+          id: string
+          note: string | null
+          payment_method: string | null
+          recurring_id: string | null
+          spent_on: string
+          subcategory: string | null
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          amount_cents: number
+          category: Database["public"]["Enums"]["fin_category"]
+          created_at?: string
+          description: string
+          id?: string
+          note?: string | null
+          payment_method?: string | null
+          recurring_id?: string | null
+          spent_on: string
+          subcategory?: string | null
+          user_id?: string
+        }
+        Update: {
+          amount_cents?: number
+          category?: Database["public"]["Enums"]["fin_category"]
+          created_at?: string
+          description?: string
+          id?: string
+          note?: string | null
+          payment_method?: string | null
+          recurring_id?: string | null
+          spent_on?: string
+          subcategory?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_expenses_recurring_id_user_id_fkey"
+            columns: ["recurring_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "fin_recurring_expenses"
+            referencedColumns: ["id", "user_id"]
+          },
+          {
+            foreignKeyName: "fin_expenses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_forecasts: {
+        Row: {
+          amount_cents: number
+          month: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          amount_cents: number
+          month: string
+          user_id?: string
+        }
+        Update: {
+          amount_cents?: number
+          month?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_forecasts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_goals: {
+        Row: {
+          created_at: string
+          current_cents: number
+          due_date: string | null
+          id: string
+          linked: string
+          name: string
+          target_cents: number
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          current_cents?: number
+          due_date?: string | null
+          id?: string
+          linked?: string
+          name: string
+          target_cents: number
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          current_cents?: number
+          due_date?: string | null
+          id?: string
+          linked?: string
+          name?: string
+          target_cents?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_goals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_incomes: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          id: string
+          note: string | null
+          received_on: string
+          source: string
+          status: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          received_on: string
+          source: string
+          status?: string
+          user_id?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          id?: string
+          note?: string | null
+          received_on?: string
+          source?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_incomes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_investment_movements: {
+        Row: {
+          amount_cents: number
+          asset_id: string
+          created_at: string
+          fees_cents: number
+          id: string
+          kind: string
+          note: string | null
+          occurred_on: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          amount_cents: number
+          asset_id: string
+          created_at?: string
+          fees_cents?: number
+          id?: string
+          kind: string
+          note?: string | null
+          occurred_on: string
+          user_id?: string
+        }
+        Update: {
+          amount_cents?: number
+          asset_id?: string
+          created_at?: string
+          fees_cents?: number
+          id?: string
+          kind?: string
+          note?: string | null
+          occurred_on?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_investment_movements_asset_id_user_id_fkey"
+            columns: ["asset_id", "user_id"]
+            isOneToOne: false
+            referencedRelation: "fin_assets"
+            referencedColumns: ["id", "user_id"]
+          },
+          {
+            foreignKeyName: "fin_investment_movements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_recurring_expenses: {
+        Row: {
+          amount_cents: number
+          category: Database["public"]["Enums"]["fin_category"]
+          created_at: string
+          day_of_month: number
+          description: string
+          end_month: string | null
+          id: string
+          paused: boolean
+          payment_method: string | null
+          start_month: string
+          subcategory: string | null
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          amount_cents: number
+          category: Database["public"]["Enums"]["fin_category"]
+          created_at?: string
+          day_of_month: number
+          description: string
+          end_month?: string | null
+          id?: string
+          paused?: boolean
+          payment_method?: string | null
+          start_month: string
+          subcategory?: string | null
+          user_id?: string
+        }
+        Update: {
+          amount_cents?: number
+          category?: Database["public"]["Enums"]["fin_category"]
+          created_at?: string
+          day_of_month?: number
+          description?: string
+          end_month?: string | null
+          id?: string
+          paused?: boolean
+          payment_method?: string | null
+          start_month?: string
+          subcategory?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_recurring_expenses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_savings_movements: {
+        Row: {
+          amount_cents: number
+          created_at: string
+          id: string
+          kind: string
+          note: string | null
+          occurred_on: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          amount_cents: number
+          created_at?: string
+          id?: string
+          kind: string
+          note?: string | null
+          occurred_on: string
+          user_id?: string
+        }
+        Update: {
+          amount_cents?: number
+          created_at?: string
+          id?: string
+          kind?: string
+          note?: string | null
+          occurred_on?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_savings_movements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_settings: {
+        Row: {
+          alert_threshold: number
+          carry_defaults: NonNullable<Json>
+          currency: string
+          disabled_alerts: string[]
+          emergency_goal_cents: number | null
+          updated_at: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          alert_threshold?: number
+          carry_defaults?: NonNullable<Json>
+          currency?: string
+          disabled_alerts?: string[]
+          emergency_goal_cents?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          alert_threshold?: number
+          carry_defaults?: NonNullable<Json>
+          currency?: string
+          disabled_alerts?: string[]
+          emergency_goal_cents?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fin_transfers: {
+        Row: {
+          action: string
+          amount_cents: number
+          created_at: string
+          from_category: Database["public"]["Enums"]["fin_category"]
+          id: string
+          month: string
+          note: string | null
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          action: string
+          amount_cents: number
+          created_at?: string
+          from_category: Database["public"]["Enums"]["fin_category"]
+          id?: string
+          month: string
+          note?: string | null
+          user_id?: string
+        }
+        Update: {
+          action?: string
+          amount_cents?: number
+          created_at?: string
+          from_category?: Database["public"]["Enums"]["fin_category"]
+          id?: string
+          month?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fin_transfers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           can_view_reports: boolean
@@ -551,6 +1064,7 @@ export type Database = {
         Args: { p_ended_at: string; p_id: string; p_reason: string; p_started_at: string }
         Returns: undefined
       }
+      is_finance_user: { Args: { p_user: string }; Returns: boolean }
       is_owner: { Args: Record<PropertyKey, never>; Returns: boolean }
       log_time: {
         Args: { p_description: string; p_ended_at: string; p_started_at: string; p_task_id: string }
@@ -565,6 +1079,7 @@ export type Database = {
     }
     Enums: {
       app_role: "owner" | "collaborator"
+      fin_category: "growth" | "stability" | "essentials" | "reward"
       project_status: "planned" | "in_progress" | "paused" | "done"
       task_priority: "low" | "normal" | "high"
       task_status: "todo" | "in_progress" | "rescheduled" | "done"
@@ -679,6 +1194,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["owner", "collaborator"],
+      fin_category: ["growth", "stability", "essentials", "reward"],
       project_status: ["planned", "in_progress", "paused", "done"],
       task_priority: ["low", "normal", "high"],
       task_status: ["todo", "in_progress", "rescheduled", "done"],

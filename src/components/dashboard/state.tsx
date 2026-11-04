@@ -5,8 +5,8 @@ import { createContext, useContext, useState, type ReactNode } from "react"
 import type { Client, Profile, Project } from "@/lib/domain"
 import { useProfiles, useProjects } from "@/lib/queries"
 
-export type Section = "overview" | "projects" | "tasks" | "clients" | "stats" | "reports"
-const SECTIONS: Section[] = ["overview", "projects", "tasks", "clients", "stats", "reports"]
+export type Section = "overview" | "projects" | "tasks" | "clients" | "stats" | "reports" | "finance"
+const SECTIONS: Section[] = ["overview", "projects", "tasks", "clients", "stats", "reports", "finance"]
 
 export type DialogState =
   | { type: "project"; project?: Project }
