@@ -21,6 +21,7 @@ const task = (over: Partial<Task>): Task => ({
   assignees: [],
   comment_count: 0,
   link_count: 0,
+  tag_ids: [],
   time_entries: [],
   ...over,
 })

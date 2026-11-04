@@ -8,6 +8,7 @@ import { useUpdateTask } from "@/lib/queries"
 import { cn } from "@/lib/utils"
 import { ChecklistProgress, InlineChecklist } from "./inline-checklist"
 import { AssigneeMenu, ChecklistAdd, DueDateControl, MoreMenu, PriorityMenu } from "./card-actions"
+import { TagChips } from "../tags"
 import { BlockedBadge, statusAccent, TaskStatusBadge } from "./task-meta"
 import { TaskTime } from "./task-time"
 
@@ -46,6 +47,7 @@ export function TaskList({
                     {task.title}
                   </button>
                   {projectNames && <p className="truncate text-xs text-muted-foreground">{projectNames.get(task.project_id)}</p>}
+                  <TagChips ids={task.tag_ids} className="mt-1" />
                   {openChecklist === task.id && (
                     <div className="mt-2 max-w-md">
                       <InlineChecklist task={task} />

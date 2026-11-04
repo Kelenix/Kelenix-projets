@@ -40,6 +40,7 @@ import { getSupabase } from "@/lib/supabase/client"
 import { cn } from "@/lib/utils"
 import { ClientsSection } from "./clients"
 import { FinanceSection } from "./finance/finance-section"
+import { ForgottenSessionBanner } from "./forgotten-session"
 import { MyTasksSection } from "./my-tasks"
 import { OverviewSection } from "./overview"
 import { ProjectsSection } from "./projects"
@@ -83,6 +84,7 @@ export function Shell() {
       <div className="flex min-w-0 flex-1 flex-col pb-16 md:pb-0">
         <Topbar />
         <main id="contenu" className="w-full flex-1 px-4 py-6 md:px-8">
+          <ForgottenSessionBanner />
           <Content />
         </main>
       </div>

@@ -1,6 +1,6 @@
 -- Tests RLS (pgTAP) : `pnpm test:db`. S'appuie sur les comptes de démo de seed.sql.
 begin;
-select plan(70);
+select plan(83);
 
 create temp table projects_all_for_test on commit drop as select id from public.projects;
 grant select on projects_all_for_test to authenticated;
@@ -228,6 +228,16 @@ select isnt_empty(
   'chef de projet : fixe le budget d''heures de son projet'
 );
 
+-- Validation des heures par le chef de projet.
+select ok(
+  public.approve_time_entries(array(select id from public.time_entries where user_id = '22222222-2222-2222-2222-222222222222' and kind = 'work' and ended_at is not null), true) > 0,
+  'chef de projet : valide les heures de son équipe'
+);
+select isnt_empty(
+  $$select id from public.time_entry_audit where action = 'approve'$$,
+  'audit : la validation est journalisée et visible du chef de projet'
+);
+
 -- Le chef de projet repart en pause « repas », sans la terminer.
 select public.start_timer((select id from own_task_for_test));
 select public.pause_timer('meal');
@@ -242,6 +252,43 @@ select is(
   (select pause_reason from public.time_entries where user_id = '55555555-5555-5555-5555-555555555555' and kind = 'pause' and ended_at is null),
   'meal', 'collaborateur : voit la pause en cours d''un membre du projet et son motif'
 );
+select throws_ok(
+  $$select public.approve_time_entries(array(select id from public.time_entries where user_id = auth.uid() and ended_at is not null), true)$$,
+  '42501', null, 'collaborateur : ne valide pas ses propres heures'
+);
+select throws_ok(
+  $$select public.edit_time_entry((select id from public.time_entries where user_id = auth.uid() and source = 'manual'),
+    date_trunc('day', now()) - interval '400 days' + interval '2 hours', date_trunc('day', now()) - interval '400 days' + interval '6 hours', 'Après validation')$$,
+  'P0001', null, 'heures validées : plus modifiables par leur auteur'
+);
+select throws_ok(
+  $$select public.set_time_entry_billable((select id from public.time_entries where user_id = auth.uid() and source = 'manual'), false)$$,
+  '42501', null, 'heures validées : facturation figée pour leur auteur'
+);
+select isnt_empty(
+  $$select id from public.time_entry_audit where entry_user_id = auth.uid() and action in ('manual_add', 'edit', 'approve')$$,
+  'audit : chacun voit l''historique de ses propres heures'
+);
+select lives_ok($$insert into public.tags (name, color) values ('Urgent client', 'red')$$, 'tags : un membre crée un tag');
+select is_empty($$delete from public.tags where name = 'Urgent client' returning id$$, 'tags : seul un administrateur supprime un tag');
+select lives_ok(
+  $$insert into public.absences (kind, start_date, end_date) values ('leave', current_date + 10, current_date + 14)$$,
+  'absences : chacun déclare ses congés'
+);
+select throws_ok(
+  $$insert into public.absences (user_id, kind, start_date, end_date) values ('55555555-5555-5555-5555-555555555555', 'sick', current_date, current_date)$$,
+  '42501', null, 'absences : pas au nom d''un autre'
+);
+select throws_ok(
+  $$insert into public.holidays (day, name) values (current_date + 3, 'Intrus')$$,
+  '42501', null, 'jours fériés : gérés par un administrateur'
+);
+select public.start_timer((select id from own_task_for_test));
+select throws_ok(
+  $$select public.stop_timer_at(now() + interval '1 hour')$$,
+  'P0001', null, 'session oubliée : heure de fin jamais dans le futur'
+);
+select public.stop_timer();
 select isnt_empty(
   $$select id from public.time_entries where user_id = '55555555-5555-5555-5555-555555555555' and kind = 'work'$$,
   'collaborateur : voit le temps de travail de l''équipe'
@@ -299,6 +346,17 @@ update public.tasks set status = 'done' where title = 'Rédiger les mentions lé
 select isnt((select completed_at from public.tasks where title = 'Rédiger les mentions légales'), null, 'terminer une tâche renseigne sa date de fin');
 update public.tasks set status = 'todo' where title = 'Rédiger les mentions légales';
 select is((select completed_at from public.tasks where title = 'Rédiger les mentions légales'), null, 'rouvrir une tâche efface sa date de fin');
+
+select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);
+update public.projects set billable_default = false where id = 'a0000000-0000-0000-0000-000000000002';
+select public.log_time(
+  (select id from public.tasks where project_id = 'a0000000-0000-0000-0000-000000000002' limit 1),
+  date_trunc('day', now()) - interval '500 days' + interval '9 hours', date_trunc('day', now()) - interval '500 days' + interval '10 hours', 'Interne'
+);
+select is(
+  (select billable from public.time_entries where description = 'Interne' and user_id = auth.uid()), false,
+  'facturable : une session prend le réglage de son projet'
+);
 
 -- Finances personnelles : propres à chaque administrateur.
 select set_config('request.jwt.claims', '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}', true);

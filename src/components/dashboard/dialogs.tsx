@@ -141,6 +141,10 @@ function ProjectForm({ project, onDone }: { project?: Project; onDone: () => voi
             ))}
           </NativeSelect>
         </Field>
+        <label className="flex items-center gap-2 self-end pb-2 text-sm">
+          <input type="checkbox" name="billable_default" defaultChecked={project?.billable_default ?? true} className="size-4 accent-primary" />
+          Heures facturables par défaut
+        </label>
         <Field label="Budget d'heures (facultatif)" error={errors.budget_minutes} hint="Alerte à 80 % et en cas de dépassement.">
           <Input
             name="budget_minutes"

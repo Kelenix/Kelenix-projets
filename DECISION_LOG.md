@@ -5,6 +5,25 @@
 
 ---
 
+## ADR-024 — Tags, calendrier, absences, validation et facturation des heures, audit, sessions oubliées
+
+- **Date** : 2026-11-05
+- **Statut** : Accepté
+- **Décideur** : Claude (rôles : solution-architect, security)
+- **Contexte** : Demande « Fonctionnalités supplémentaires » (73–85). Déjà présents : Kanban, liste, recherche globale, mode sombre, chrono serveur synchronisé (ADR-022), refus des chevauchements (`check_time_range`).
+- **Décision** :
+  - **Tags** communs à l'équipe (`tags`, `task_tags`, `project_tags`) : tout membre en crée depuis une tâche ; les tags de projet sont gérés par qui gère le projet ; suppression réservée aux administrateurs. Filtres par tag (tâches, projets).
+  - **Calendrier** (onglet des vues de tâches) : échéances, heures travaillées par jour, jours fériés, absences ; grille sur grand écran, liste sur mobile.
+  - **Absences** (`absences`, visibles de l'équipe, gérées par leur auteur ou un administrateur) et **jours fériés** (`holidays`, administrateurs ; jours fériés français calculés, Pâques comprise).
+  - **Sessions oubliées** : le chrono vit sur le serveur ; ouvert depuis plus de 10 h ou depuis la veille, un bandeau propose de le terminer à l'heure réelle (`stop_timer_at`, jamais dans le futur ni avant le début).
+  - **Validation** (`approve_time_entries`) par chef de projet ou administrateur ; une heure validée n'est plus corrigeable ni (dé)facturable par son auteur.
+  - **Facturable** : réglage par projet (`billable_default`) appliqué à chaque nouvelle session ; bascule par session.
+  - **Audit** (`time_entry_audit`, alimenté par trigger) : ajouts manuels, corrections, arrêts de sessions oubliées, suppressions, validations, facturation ; lecture par l'auteur des heures et les chefs du projet ; rapport « Journal d'audit des heures ».
+- **Alternatives écartées** : arrêt automatique des sessions oubliées (risque de fausser les heures sans l'avis de la personne) ; audit applicatif côté client (contournable).
+- **Impact** : fonctionnel + sécurité
+
+---
+
 ## ADR-023 — Pause en cours visible des membres du projet
 
 - **Date** : 2026-11-04

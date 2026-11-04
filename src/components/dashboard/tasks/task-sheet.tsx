@@ -41,6 +41,7 @@ import {
 import { linkSchema } from "@/lib/schemas"
 import { formatDuration, totals } from "@/lib/time"
 import { useDashboard } from "../state"
+import { TagChips, TagPicker } from "../tags"
 import { BlockedBadge, Gap } from "./task-meta"
 import { TaskTimeDetails } from "../time-sessions"
 import { TaskTime } from "./task-time"
@@ -123,7 +124,9 @@ function TaskDetails({ task }: { task: Task }) {
           rows={1}
           className="min-h-0 resize-none border-transparent bg-transparent px-1 text-lg font-semibold shadow-none focus-visible:border-ring"
         />
-        <div className="flex flex-wrap gap-2 px-1">
+        <div className="flex flex-wrap items-center gap-2 px-1">
+          <TagPicker target="task" id={task.id} selected={task.tag_ids} label={`Tags de « ${task.title} »`} />
+          <TagChips ids={task.tag_ids} />
           {task.is_blocked && <BlockedBadge />}
           {isOverdue(task) && <span className="text-xs font-medium text-destructive">En retard</span>}
         </div>

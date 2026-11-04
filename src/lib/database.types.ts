@@ -20,6 +20,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      absences: {
+        Row: {
+          created_at: string
+          end_date: string
+          id: string
+          kind: string
+          start_date: string
+          user_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          created_at?: string
+          end_date: string
+          id?: string
+          kind: string
+          start_date: string
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          id?: string
+          kind?: string
+          start_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "absences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           company: string | null
@@ -564,6 +600,22 @@ export type Database = {
           },
         ]
       }
+      holidays: {
+        Row: {
+          day: string
+          name: string
+        }
+        ComputedFields: never
+        Insert: {
+          day: string
+          name: string
+        }
+        Update: {
+          day?: string
+          name?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           can_view_reports: boolean
@@ -665,9 +717,41 @@ export type Database = {
           },
         ]
       }
+      project_tags: {
+        Row: {
+          project_id: string
+          tag_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          project_id: string
+          tag_id: string
+        }
+        Update: {
+          project_id?: string
+          tag_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_tags_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           archived_at: string | null
+          billable_default: boolean
           budget_minutes: number | null
           client_id: string | null
           created_at: string
@@ -681,6 +765,7 @@ export type Database = {
         ComputedFields: never
         Insert: {
           archived_at?: string | null
+          billable_default?: boolean
           budget_minutes?: number | null
           client_id?: string | null
           created_at?: string
@@ -693,6 +778,7 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          billable_default?: boolean
           budget_minutes?: number | null
           client_id?: string | null
           created_at?: string
@@ -709,6 +795,39 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tags: {
+        Row: {
+          color: string
+          created_at: string
+          created_by: string | null
+          id: string
+          name: string
+        }
+        ComputedFields: never
+        Insert: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tags_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -856,6 +975,37 @@ export type Database = {
           },
         ]
       }
+      task_tags: {
+        Row: {
+          tag_id: string
+          task_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          tag_id: string
+          task_id: string
+        }
+        Update: {
+          tag_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_tags_tag_id_fkey"
+            columns: ["tag_id"]
+            isOneToOne: false
+            referencedRelation: "tags"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_tags_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assignee_id: string | null
@@ -932,6 +1082,9 @@ export type Database = {
       }
       time_entries: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
+          billable: boolean
           description: string | null
           edited_at: string | null
           ended_at: string | null
@@ -945,6 +1098,9 @@ export type Database = {
         }
         ComputedFields: never
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          billable?: boolean
           description?: string | null
           edited_at?: string | null
           ended_at?: string | null
@@ -957,6 +1113,9 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          billable?: boolean
           description?: string | null
           edited_at?: string | null
           ended_at?: string | null
@@ -970,6 +1129,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "time_entries_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "time_entries_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
@@ -981,6 +1147,65 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_entry_audit: {
+        Row: {
+          action: string
+          actor_id: string | null
+          created_at: string
+          entry_id: string
+          entry_user_id: string | null
+          id: number
+          new_value: Json | null
+          old_value: Json | null
+          task_id: string
+        }
+        ComputedFields: never
+        Insert: {
+          action: string
+          actor_id?: string | null
+          created_at?: string
+          entry_id: string
+          entry_user_id?: string | null
+          id?: never
+          new_value?: Json | null
+          old_value?: Json | null
+          task_id: string
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          created_at?: string
+          entry_id?: string
+          entry_user_id?: string | null
+          id?: never
+          new_value?: Json | null
+          old_value?: Json | null
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_entry_audit_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entry_audit_entry_user_id_fkey"
+            columns: ["entry_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entry_audit_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
         ]
@@ -1052,6 +1277,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_time_entries: { Args: { p_approved: boolean; p_ids: string[] }; Returns: number }
+      assign_worker: { Args: { p_task_id: string; p_user: string }; Returns: undefined }
       can_access_project: { Args: { p_project_id: string }; Returns: boolean }
       can_access_task: { Args: { p_task_id: string }; Returns: boolean }
       can_manage_project: { Args: { p_project_id: string }; Returns: boolean }
@@ -1074,9 +1301,11 @@ export type Database = {
       pause_timer: { Args: { p_reason?: string }; Returns: undefined }
       resume_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
       set_pause_reason: { Args: { p_id: string; p_reason: string }; Returns: undefined }
+      set_time_entry_billable: { Args: { p_billable: boolean; p_id: string }; Returns: undefined }
       set_time_entry_description: { Args: { p_description: string; p_id: string }; Returns: undefined }
       start_timer: { Args: { p_task_id: string }; Returns: undefined }
       stop_timer: { Args: Record<PropertyKey, never>; Returns: undefined }
+      stop_timer_at: { Args: { p_ended_at: string }; Returns: undefined }
     }
     Enums: {
       app_role: "owner" | "collaborator"

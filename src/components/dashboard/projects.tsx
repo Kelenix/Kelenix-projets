@@ -9,10 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { normalize, PROJECT_STATUS_LABELS, type ProjectStatus, type Task } from "@/lib/domain"
-import { useClients, useProfiles, useProjects, useTasks } from "@/lib/queries"
+import { useClients, useProfiles, useProjects, useTags, useTasks } from "@/lib/queries"
 import { formatDuration, totals } from "@/lib/time"
 import { ProjectProgress } from "./project-progress"
 import { BudgetBadge } from "./project-tracking"
+import { TagChips } from "./tags"
 import { ProjectWorkspace } from "./project-workspace"
 import { useDashboard } from "./state"
 import { Assignee, DueDate, ProjectStatusBadge } from "./tasks/task-meta"
@@ -33,6 +34,8 @@ function ProjectList() {
   const [query, setQuery] = useState("")
   const [status, setStatus] = useState<StatusFilter>("all")
   const [clientId, setClientId] = useState("")
+  const [tagId, setTagId] = useState("")
+  const { data: tags = [] } = useTags()
 
   const clientNames = useMemo(() => new Map(clients.map((c) => [c.id, c.name])), [clients])
   const tasksByProject = useMemo(() => Map.groupBy(tasks, (t) => t.project_id), [tasks])
@@ -42,9 +45,10 @@ function ProjectList() {
       (p) =>
         (status === "archived" ? !!p.archived_at : !p.archived_at && (status === "all" || p.status === status)) &&
         (!clientId || p.client_id === clientId) &&
+        (!tagId || p.tag_ids.includes(tagId)) &&
         (!q || normalize(p.name).includes(q))
     )
-  }, [projectsQuery.data, query, status, clientId])
+  }, [projectsQuery.data, query, status, clientId, tagId])
 
   // Compteurs par statut (projets non archivés) : actifs, suspendus, terminés, prévus.
   const live = (projectsQuery.data ?? []).filter((p) => !p.archived_at)
@@ -85,6 +89,16 @@ function ProjectList() {
             </option>
           ))}
         </NativeSelect>
+        {tags.length > 0 && (
+          <NativeSelect aria-label="Filtrer par tag" value={tagId} onChange={(e) => setTagId(e.target.value)} className="sm:w-48">
+            <option value="">Tous les tags</option>
+            {tags.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </NativeSelect>
+        )}
       </div>
 
       {live.length > 0 && (
@@ -138,7 +152,7 @@ function ProjectList() {
           <p className="text-sm text-muted-foreground">
             {projects.length} projet{projects.length > 1 ? "s" : ""}
           </p>
-          <ShowMore key={`${status}-${clientId}-${query}`} items={projects} pageSize={24}>
+          <ShowMore key={`${status}-${clientId}-${tagId}-${query}`} items={projects} pageSize={24}>
             {(visible) => (
               <ul className="grid gap-3 md:grid-cols-2">
                 {visible.map((project) => (
@@ -154,6 +168,7 @@ function ProjectList() {
                           <p className="truncate text-xs text-muted-foreground">
                             {(project.client_id && clientNames.get(project.client_id)) || "Sans client"}
                           </p>
+                          <TagChips ids={project.tag_ids} className="mt-1.5" />
                         </div>
                         <span className="flex shrink-0 flex-col items-end gap-1">
                           <ProjectStatusBadge status={project.status} />

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { budgetStatus, compareByDueDate, isMilestoneLate, taskCounts, initials, isOverdue, normalize, projectProgress, todayISO, type Task } from "./domain"
+import { budgetStatus, compareByDueDate, forgottenSession, frenchHolidays, monthGrid, isMilestoneLate, taskCounts, initials, isOverdue, normalize, projectProgress, todayISO, type Task } from "./domain"
 
 const task = (over: Partial<Task>): Task => ({
   id: "1",
@@ -20,6 +20,7 @@ const task = (over: Partial<Task>): Task => ({
   assignees: [],
   comment_count: 0,
   link_count: 0,
+  tag_ids: [],
   time_entries: [],
   ...over,
 })
@@ -101,5 +102,30 @@ describe("taskCounts et jalons", () => {
     expect(isMilestoneLate({ due_date: "2026-11-01", done_at: null }, "2026-11-02")).toBe(true)
     expect(isMilestoneLate({ due_date: "2026-11-01", done_at: "2026-11-01T10:00:00Z" }, "2026-11-02")).toBe(false)
     expect(isMilestoneLate({ due_date: "2026-11-02", done_at: null }, "2026-11-02")).toBe(false)
+  })
+})
+
+describe("jours fériés, sessions oubliées, calendrier", () => {
+  it("jours fériés français, fêtes mobiles comprises", () => {
+    const days = new Map(frenchHolidays(2026).map((h) => [h.name, h.day]))
+    expect(days.get("Lundi de Pâques")).toBe("2026-04-06")
+    expect(days.get("Ascension")).toBe("2026-05-14")
+    expect(days.get("Lundi de Pentecôte")).toBe("2026-05-25")
+    expect(frenchHolidays(2027).find((h) => h.name === "Lundi de Pâques")?.day).toBe("2027-03-29")
+    expect(frenchHolidays(2026)).toHaveLength(11)
+  })
+  it("session oubliée : ouverte depuis la veille ou plus de 10 heures", () => {
+    const now = new Date(2026, 10, 5, 9).getTime()
+    const at = (d: number, h: number) => new Date(2026, 10, d, h).toISOString()
+    expect(forgottenSession([{ user_id: "a", started_at: at(4, 17), ended_at: null }], "a", now)).toMatchObject({ hours: 16 })
+    expect(forgottenSession([{ user_id: "a", started_at: at(5, 8), ended_at: null }], "a", now)).toBeNull()
+    expect(forgottenSession([{ user_id: "b", started_at: at(4, 17), ended_at: null }], "a", now)).toBeNull()
+  })
+  it("grille du mois du lundi au dimanche", () => {
+    const weeks = monthGrid(2026, 10) // novembre 2026 : commence un dimanche
+    expect(weeks[0]![0]).toEqual({ day: "2026-10-26", inMonth: false })
+    expect(weeks[0]![6]).toEqual({ day: "2026-11-01", inMonth: true })
+    expect(weeks.at(-1)!.some((d) => d.day === "2026-11-30")).toBe(true)
+    expect(weeks).toHaveLength(6)
   })
 })

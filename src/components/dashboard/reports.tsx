@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Skeleton } from "@/components/ui/skeleton"
 import { formatDate, TASK_STATUS_LABELS, TASK_STATUSES, todayISO, type TaskStatus } from "@/lib/domain"
 import { display, exportReport, type ExportFormat } from "@/lib/export"
-import { useProfiles, useProjects, useTasks } from "@/lib/queries"
+import { useProfiles, useProjects, useTasks, useTimeAudit } from "@/lib/queries"
 import { buildReport, GRANULARITIES, REPORTS, type Granularity, type ReportKind } from "@/lib/reports"
 import { cn } from "@/lib/utils"
 import { useDashboard } from "./state"
@@ -66,6 +66,9 @@ export function ReportsSection() {
   const [projectId, setProjectId] = useState("")
   const [taskId, setTaskId] = useState("")
   const [status, setStatus] = useState<TaskStatus | "">("")
+  const [billing, setBilling] = useState<"" | "billable" | "not_billable">("")
+  const [approval, setApproval] = useState<"" | "approved" | "pending">("")
+  const auditQuery = useTimeAudit()
   const [exporting, setExporting] = useState<ExportFormat | null>(null)
 
   const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
@@ -95,9 +98,12 @@ export function ReportsSection() {
         projectId: projectId || undefined,
         taskId: taskId || undefined,
         status: status || undefined,
+        billing: billing || undefined,
+        approval: approval || undefined,
       },
+      audit: auditQuery.data,
     })
-  }, [kind, granularity, range, validRange, effectiveUser, projectId, taskId, status, tasksQuery.data, projects, profiles])
+  }, [kind, granularity, range, validRange, effectiveUser, projectId, taskId, status, billing, approval, tasksQuery.data, projects, profiles, auditQuery.data])
 
   if (tasksQuery.isError || projectsQuery.isError)
     return <ErrorState onRetry={() => (tasksQuery.refetch(), projectsQuery.refetch())} />
@@ -109,6 +115,8 @@ export function ReportsSection() {
     projectId && `Projet : ${projects.find((p) => p.id === projectId)?.name ?? ""}`,
     taskId && `Tâche : ${projectTasks.find((t) => t.id === taskId)?.title ?? ""}`,
     status && `Statut : ${TASK_STATUS_LABELS[status]}`,
+    billing && (billing === "billable" ? "Heures facturables" : "Heures non facturables"),
+    approval && (approval === "approved" ? "Heures validées" : "Heures à valider"),
   ]
     .filter(Boolean)
     .join(" · ")
@@ -211,6 +219,20 @@ export function ReportsSection() {
                   {t.title}
                 </option>
               ))}
+            </NativeSelect>
+          </Field>
+          <Field label="Facturation">
+            <NativeSelect value={billing} onChange={(e) => setBilling(e.target.value as typeof billing)}>
+              <option value="">Toutes les heures</option>
+              <option value="billable">Facturables</option>
+              <option value="not_billable">Non facturables</option>
+            </NativeSelect>
+          </Field>
+          <Field label="Validation">
+            <NativeSelect value={approval} onChange={(e) => setApproval(e.target.value as typeof approval)}>
+              <option value="">Validées ou non</option>
+              <option value="approved">Validées</option>
+              <option value="pending">À valider</option>
             </NativeSelect>
           </Field>
           <Field label="Statut de la tâche">

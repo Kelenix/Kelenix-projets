@@ -12,7 +12,7 @@ import {
 } from "@/lib/domain"
 import { entryMs, totals } from "@/lib/time"
 
-export type ReportKind = "hours" | "projects" | "tasks" | "people" | "pauses" | "estimates"
+export type ReportKind = "hours" | "projects" | "tasks" | "people" | "pauses" | "estimates" | "audit"
 export type Granularity = "day" | "week" | "month"
 
 export const REPORTS: Record<ReportKind, string> = {
@@ -22,6 +22,7 @@ export const REPORTS: Record<ReportKind, string> = {
   people: "Temps par collaborateur",
   pauses: "Pauses par collaborateur",
   estimates: "Heures estimées / réelles",
+  audit: "Journal d'audit des heures",
 }
 
 export const GRANULARITIES: Record<Granularity, string> = { day: "Quotidien", week: "Hebdomadaire", month: "Mensuel" }
@@ -45,6 +46,21 @@ export type ReportFilters = {
   projectId?: string
   taskId?: string
   status?: TaskStatus
+  /** Heures de travail facturables ou non ; validées par un chef de projet ou en attente. */
+  billing?: "billable" | "not_billable"
+  approval?: "approved" | "pending"
+}
+
+/** Ligne du journal d'audit des heures (table `time_entry_audit`). */
+export type AuditEntry = {
+  entry_id: string
+  task_id: string
+  entry_user_id: string | null
+  actor_id: string | null
+  action: string
+  old_value: Record<string, unknown> | null
+  new_value: Record<string, unknown> | null
+  created_at: string
 }
 
 type Input = {
@@ -54,9 +70,19 @@ type Input = {
   filters: ReportFilters
   granularity?: Granularity
   now?: number
+  audit?: AuditEntry[]
 }
 
 const isWork = (e: TimeEntry) => e.kind !== "pause"
+const isBillable = (e: TimeEntry) => e.billable !== false
+
+/** Filtres facturation / validation : ne portent que sur le travail (les pauses ne se facturent ni ne se valident). */
+function keep(e: TimeEntry, { billing, approval }: ReportFilters) {
+  if (!isWork(e)) return !billing && !approval
+  if (billing && isBillable(e) !== (billing === "billable")) return false
+  if (approval && !!e.approved_at !== (approval === "approved")) return false
+  return true
+}
 const day = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
 const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => d.toLocaleDateString("fr-FR", o)
 
@@ -75,7 +101,7 @@ function sessions(task: Task, { filters, now = Date.now() }: Input) {
   const from = filters.from.getTime()
   const to = filters.to.getTime()
   return task.time_entries
-    .filter((e) => !filters.userId || e.user_id === filters.userId)
+    .filter((e) => (!filters.userId || e.user_id === filters.userId) && keep(e, filters))
     .map((e) => ({ entry: e, ms: entryMs(e, now, from, to) }))
     .filter((s) => s.ms > 0)
 }
@@ -108,7 +134,7 @@ export function buckets(from: Date, to: Date, granularity: Granularity) {
 /** 63–65 : heures travaillées par jour, semaine ou mois, une colonne par collaborateur. */
 function hoursReport(input: Input): Report {
   const { filters, names, granularity = "day", now = Date.now() } = input
-  const all = scopedTasks(input).flatMap((t) => t.time_entries.filter(isWork))
+  const all = scopedTasks(input).flatMap((t) => t.time_entries.filter((e) => isWork(e) && keep(e, filters)))
   const people = [...new Set(all.filter((e) => !filters.userId || e.user_id === filters.userId).map((e) => e.user_id))]
     .filter((id) => sessionsInPeriod(all, id, filters, now) > 0)
     .sort((a, b) => (names.get(a) ?? "").localeCompare(names.get(b) ?? "", "fr"))
@@ -153,6 +179,7 @@ function projectsReport(input: Input): Report {
       people: new Set(s.map((x) => x.entry.user_id)).size,
       work: s.filter((x) => isWork(x.entry)).reduce((a, x) => a + x.ms, 0),
       pause: s.filter((x) => !isWork(x.entry)).reduce((a, x) => a + x.ms, 0),
+      billable: s.filter((x) => isWork(x.entry) && isBillable(x.entry)).reduce((a, x) => a + x.ms, 0),
       budget: project?.budget_minutes ? project.budget_minutes * 60_000 : null,
       consumed: project?.budget_minutes ? Math.round((allWork / (project.budget_minutes * 60_000)) * 100) : null,
     })
@@ -165,12 +192,13 @@ function projectsReport(input: Input): Report {
       { key: "status", label: "Statut", kind: "text" },
       { key: "people", label: "Collaborateurs", kind: "number" },
       { key: "work", label: "Travail", kind: "duration" },
+      { key: "billable", label: "dont facturable", kind: "duration" },
       { key: "pause", label: "Pauses", kind: "duration" },
       { key: "budget", label: "Budget", kind: "duration" },
       { key: "consumed", label: "Budget consommé (total)", kind: "percent" },
     ],
     rows,
-    total: { name: "Total", work: sum(rows, "work"), pause: sum(rows, "pause") },
+    total: { name: "Total", work: sum(rows, "work"), billable: sum(rows, "billable"), pause: sum(rows, "pause") },
   }
 }
 
@@ -188,6 +216,7 @@ function tasksReport(input: Input): Report {
       status: TASK_STATUS_LABELS[task.status],
       people: new Set(s.map((x) => x.entry.user_id)).size,
       work: s.filter((x) => isWork(x.entry)).reduce((a, x) => a + x.ms, 0),
+      billable: s.filter((x) => isWork(x.entry) && isBillable(x.entry)).reduce((a, x) => a + x.ms, 0),
       pause: s.filter((x) => !isWork(x.entry)).reduce((a, x) => a + x.ms, 0),
     })
   }
@@ -200,10 +229,11 @@ function tasksReport(input: Input): Report {
       { key: "status", label: "Statut", kind: "text" },
       { key: "people", label: "Collaborateurs", kind: "number" },
       { key: "work", label: "Travail", kind: "duration" },
+      { key: "billable", label: "dont facturable", kind: "duration" },
       { key: "pause", label: "Pauses", kind: "duration" },
     ],
     rows,
-    total: { name: "Total", work: sum(rows, "work"), pause: sum(rows, "pause") },
+    total: { name: "Total", work: sum(rows, "work"), billable: sum(rows, "billable"), pause: sum(rows, "pause") },
   }
 }
 
@@ -226,6 +256,7 @@ function peopleReport(input: Input): Report {
       sessions: work.length,
       tasks: new Set(work.map((x) => x.taskId)).size,
       work: workMs,
+      billable: work.filter((x) => isBillable(x.entry)).reduce((a, x) => a + x.ms, 0),
       pause: s.filter((x) => !isWork(x.entry)).reduce((a, x) => a + x.ms, 0),
       average: days ? Math.round(workMs / days) : 0,
     })
@@ -239,11 +270,12 @@ function peopleReport(input: Input): Report {
       { key: "sessions", label: "Sessions", kind: "number" },
       { key: "tasks", label: "Tâches", kind: "number" },
       { key: "work", label: "Travail", kind: "duration" },
+      { key: "billable", label: "dont facturable", kind: "duration" },
       { key: "pause", label: "Pauses", kind: "duration" },
       { key: "average", label: "Moyenne par jour travaillé", kind: "duration" },
     ],
     rows,
-    total: { name: "Total", sessions: sum(rows, "sessions"), work: sum(rows, "work"), pause: sum(rows, "pause") },
+    total: { name: "Total", sessions: sum(rows, "sessions"), work: sum(rows, "work"), billable: sum(rows, "billable"), pause: sum(rows, "pause") },
   }
 }
 
@@ -331,6 +363,61 @@ function estimatesReport(input: Input): Report {
   }
 }
 
+export const AUDIT_ACTIONS: Record<string, string> = {
+  manual_add: "Ajout manuel",
+  edit: "Correction",
+  stop_at: "Session oubliée terminée",
+  delete: "Suppression",
+  approve: "Validation",
+  unapprove: "Validation retirée",
+  billable: "Rendue facturable",
+  not_billable: "Rendue non facturable",
+}
+
+const hm = (v: unknown) =>
+  typeof v === "string" ? new Date(v).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" }) : "—"
+const range = (v: Record<string, unknown> | null) => (v ? `${hm(v.started_at)} → ${v.ended_at ? hm(v.ended_at) : "en cours"}` : "—")
+
+/** 83 : journal d'audit des modifications des heures, filtré par période, personne, projet, tâche. */
+function auditReport(input: Input): Report {
+  const { filters, names } = input
+  const tasks = new Map(scopedTasks(input).map((t) => [t.id, t]))
+  const projectNames = new Map(input.projects.map((p) => [p.id, p.name]))
+  const rows: Row[] = (input.audit ?? [])
+    .filter((a) => {
+      const at = Date.parse(a.created_at)
+      return tasks.has(a.task_id) && at >= filters.from.getTime() && at < filters.to.getTime() && (!filters.userId || a.entry_user_id === filters.userId)
+    })
+    .map((a) => {
+      const task = tasks.get(a.task_id)!
+      return {
+        date: hm(a.created_at),
+        action: AUDIT_ACTIONS[a.action] ?? a.action,
+        person: (a.entry_user_id && names.get(a.entry_user_id)) || "—",
+        actor: (a.actor_id && names.get(a.actor_id)) || "Système",
+        task: task.title,
+        project: projectNames.get(task.project_id) ?? "—",
+        before: range(a.old_value),
+        after: range(a.new_value),
+      }
+    })
+  return {
+    title: REPORTS.audit,
+    columns: [
+      { key: "date", label: "Date", kind: "text" },
+      { key: "action", label: "Action", kind: "text" },
+      { key: "person", label: "Heures de", kind: "text" },
+      { key: "actor", label: "Par", kind: "text" },
+      { key: "task", label: "Tâche", kind: "text" },
+      { key: "project", label: "Projet", kind: "text" },
+      { key: "before", label: "Avant", kind: "text" },
+      { key: "after", label: "Après", kind: "text" },
+    ],
+    rows,
+    note: "Ajouts manuels, corrections, suppressions, validations et changements de facturation. Vous voyez vos propres heures ; un chef de projet voit celles de son équipe.",
+  }
+}
+
 export function buildReport(kind: ReportKind, input: Input): Report {
   return {
     hours: hoursReport,
@@ -339,6 +426,7 @@ export function buildReport(kind: ReportKind, input: Input): Report {
     people: peopleReport,
     pauses: pausesReport,
     estimates: estimatesReport,
+    audit: auditReport,
   }[kind](input)
 }
 

@@ -17,6 +17,7 @@ import { PROJECT_ROLE_LABELS, ROLE_LABELS, type Profile, type ProjectRole, type 
 import { errorMessage, keys, useProfiles, useProjects, useSetProjectAccess, useUpdateProfile } from "@/lib/queries"
 import { fieldErrors, memberSchema, passwordSchema } from "@/lib/schemas"
 import { getSupabase } from "@/lib/supabase/client"
+import { AbsencesPanel, HolidaysPanel, TagsPanel } from "./absences"
 import { useDashboard } from "./state"
 import { Assignee } from "./tasks/task-meta"
 
@@ -30,26 +31,40 @@ export function TeamDialog({ open, onClose }: { open: boolean; onClose: () => vo
           <DialogDescription>
             {isOwner
               ? "Gérez les membres, leurs rôles, les projets auxquels ils ont accès et l'accès aux rapports."
-              : "Les personnes qui travaillent dans cet espace."}
+              : "Les personnes qui travaillent dans cet espace et leurs absences."}
           </DialogDescription>
         </DialogHeader>
-        {isOwner ? (
-          <Tabs defaultValue="members">
-            <TabsList>
-              <TabsTrigger value="members">Membres</TabsTrigger>
-              <TabsTrigger value="access">Projets et rôles</TabsTrigger>
-            </TabsList>
-            <TabsContent value="members" className="space-y-6 pt-4">
-              <MemberList />
-              <AddMemberForm />
-            </TabsContent>
+        <Tabs defaultValue="members">
+          <TabsList className="flex-wrap">
+            <TabsTrigger value="members">Membres</TabsTrigger>
+            {isOwner && <TabsTrigger value="access">Projets et rôles</TabsTrigger>}
+            <TabsTrigger value="absences">Absences</TabsTrigger>
+            {isOwner && <TabsTrigger value="holidays">Jours fériés</TabsTrigger>}
+            {isOwner && <TabsTrigger value="tags">Tags</TabsTrigger>}
+          </TabsList>
+          <TabsContent value="members" className="space-y-6 pt-4">
+            <MemberList />
+            {isOwner && <AddMemberForm />}
+          </TabsContent>
+          {isOwner && (
             <TabsContent value="access" className="pt-4">
               <AccessMatrix />
             </TabsContent>
-          </Tabs>
-        ) : (
-          <MemberList />
-        )}
+          )}
+          <TabsContent value="absences" className="pt-4">
+            <AbsencesPanel />
+          </TabsContent>
+          {isOwner && (
+            <>
+              <TabsContent value="holidays" className="pt-4">
+                <HolidaysPanel />
+              </TabsContent>
+              <TabsContent value="tags" className="pt-4">
+                <TagsPanel />
+              </TabsContent>
+            </>
+          )}
+        </Tabs>
       </DialogContent>
     </Dialog>
   )

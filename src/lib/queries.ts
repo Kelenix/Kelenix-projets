@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/
 import { useEffect, useRef } from "react"
 import { toast } from "sonner"
 import type { TablesInsert, TablesUpdate } from "@/lib/database.types"
-import type { Client, Milestone, PauseReason, Profile, Project, ProjectRole, Task } from "@/lib/domain"
+import type { Absence, Client, Holiday, Milestone, PauseReason, Profile, Project, ProjectRole, Tag, Task } from "@/lib/domain"
 import { getSupabase } from "@/lib/supabase/client"
 
 type PgError = { code?: string; message: string }
@@ -68,13 +68,14 @@ export function useProjects() {
       const rows = await fetchAll((from, to) =>
         getSupabase()
           .from("projects")
-          .select("*, project_members(user_id, role)")
+          .select("*, project_members(user_id, role), project_tags(tag_id)")
           .order("created_at", { ascending: false })
           .order("id")
           .range(from, to)
       )
-      return rows.map(({ project_members, ...project }) => ({
+      return rows.map(({ project_members, project_tags, ...project }) => ({
         ...project,
+        tag_ids: project_tags.map((t) => t.tag_id),
         member_ids: project_members.map((m) => m.user_id),
         manager_ids: project_members.filter((m) => m.role === "manager").map((m) => m.user_id),
       }))
@@ -89,14 +90,15 @@ export function useTasks() {
       const rows = await fetchAll((from, to) =>
         getSupabase()
           .from("tasks")
-          .select("*, task_checklist_items(id, label, done), task_assignees(user_id, estimated_minutes), task_comments(count), task_links(count), time_entries(id, user_id, started_at, ended_at, kind, description, source, edited_at, pause_reason)")
+          .select("*, task_checklist_items(id, label, done), task_assignees(user_id, estimated_minutes), task_comments(count), task_links(count), task_tags(tag_id), time_entries(id, user_id, started_at, ended_at, kind, description, source, edited_at, pause_reason, billable, approved_at)")
           .order("created_at")
           .order("id")
           .order("created_at", { referencedTable: "task_checklist_items" })
           .range(from, to)
       )
-      return rows.map(({ task_checklist_items, task_assignees, task_comments, task_links, ...task }) => ({
+      return rows.map(({ task_checklist_items, task_assignees, task_comments, task_links, task_tags, ...task }) => ({
         ...task,
+        tag_ids: task_tags.map((t) => t.tag_id),
         checklist: task_checklist_items,
         assignees: task_assignees,
         comment_count: task_comments[0]?.count ?? 0,
@@ -541,8 +543,139 @@ export function useLiveSync(intervalMs = 4000) {
   useEffect(() => {
     if (version === undefined) return
     if (last.current !== null && version !== last.current)
-      for (const queryKey of [keys.projects, keys.tasks, keys.clients, keys.profiles, ["task-details"], ["time-changes"], ["milestones"]])
+      for (const queryKey of [keys.projects, keys.tasks, keys.clients, keys.profiles, ["task-details"], ["time-changes"], ["milestones"], ["tags"], ["absences"], ["holidays"], ["time-audit"]])
         queryClient.invalidateQueries({ queryKey })
     last.current = version
   }, [version, queryClient])
+}
+
+// ─── Tags ───────────────────────────────────────────────────────────────────
+export function useTags() {
+  return useQuery({
+    queryKey: ["tags"],
+    queryFn: async (): Promise<Tag[]> => unwrap(await getSupabase().from("tags").select("*").order("name")),
+  })
+}
+
+export function useCreateTag() {
+  return useAction(
+    async (values: { name: string; color: string }): Promise<Tag> =>
+      unwrap(await getSupabase().from("tags").insert(values).select().single()),
+    () => [["tags"]]
+  )
+}
+
+export function useDeleteTag() {
+  return useAction(
+    async (id: string) => unwrap(await getSupabase().from("tags").delete().eq("id", id)),
+    () => [["tags"], keys.tasks, keys.projects],
+    "Tag supprimé."
+  )
+}
+
+/** Ajoute ou retire un tag d'une tâche ou d'un projet. */
+export function useSetTag() {
+  return useAction(
+    async ({ target, id, tagId, on }: { target: "task" | "project"; id: string; tagId: string; on: boolean }) => {
+      const db = getSupabase()
+      if (target === "task") {
+        const table = db.from("task_tags")
+        return unwrap(await (on ? table.insert({ task_id: id, tag_id: tagId }) : table.delete().eq("task_id", id).eq("tag_id", tagId)))
+      }
+      const table = db.from("project_tags")
+      return unwrap(await (on ? table.insert({ project_id: id, tag_id: tagId }) : table.delete().eq("project_id", id).eq("tag_id", tagId)))
+    },
+    ({ target }) => [target === "task" ? keys.tasks : keys.projects]
+  )
+}
+
+// ─── Absences et jours fériés ───────────────────────────────────────────────
+export function useAbsences() {
+  return useQuery({
+    queryKey: ["absences"],
+    queryFn: async (): Promise<Absence[]> => unwrap(await getSupabase().from("absences").select("*").order("start_date", { ascending: false })),
+  })
+}
+
+export function useSaveAbsence() {
+  return useAction(
+    async ({ id, values }: { id?: string; values: { kind: string; start_date: string; end_date: string; user_id?: string } }) => {
+      const table = getSupabase().from("absences")
+      return unwrap(await (id ? table.update(values).eq("id", id) : table.insert(values)))
+    },
+    () => [["absences"]],
+    "Absence enregistrée."
+  )
+}
+
+export function useDeleteAbsence() {
+  return useAction(async (id: string) => unwrap(await getSupabase().from("absences").delete().eq("id", id)), () => [["absences"]], "Absence supprimée.")
+}
+
+export function useHolidays() {
+  return useQuery({
+    queryKey: ["holidays"],
+    queryFn: async (): Promise<Holiday[]> => unwrap(await getSupabase().from("holidays").select("*").order("day")),
+  })
+}
+
+export function useSaveHolidays() {
+  return useAction(
+    async (days: { day: string; name: string }[]) => unwrap(await getSupabase().from("holidays").upsert(days, { onConflict: "day" })),
+    () => [["holidays"]],
+    "Jours fériés enregistrés."
+  )
+}
+
+export function useDeleteHoliday() {
+  return useAction(async (day: string) => unwrap(await getSupabase().from("holidays").delete().eq("day", day)), () => [["holidays"]], "Jour férié supprimé.")
+}
+
+// ─── Contrôle des heures : validation, facturation, sessions oubliées, audit ─
+/** Valide (ou retire la validation de) sessions terminées : chefs de projet et administrateurs. */
+export function useApproveTimeEntries() {
+  return useTimeWrite(
+    async ({ ids, approved }: { ids: string[]; approved: boolean }) =>
+      unwrap(await getSupabase().rpc("approve_time_entries", { p_ids: ids, p_approved: approved })),
+    "Validation des heures mise à jour."
+  )
+}
+
+export function useSetBillable() {
+  return useTimeWrite(
+    async ({ id, billable }: { id: string; billable: boolean }) =>
+      unwrap(await getSupabase().rpc("set_time_entry_billable", { p_id: id, p_billable: billable })),
+    "Facturation mise à jour."
+  )
+}
+
+/** Termine sa session oubliée à l'heure réelle d'arrêt (le temps au-delà n'est pas compté). */
+export function useStopTimerAt() {
+  return useTimeWrite(
+    async (endedAt: string) => unwrap(await getSupabase().rpc("stop_timer_at", { p_ended_at: endedAt })),
+    "Session terminée à l'heure indiquée."
+  )
+}
+
+export type AuditRow = {
+  id: number
+  entry_id: string
+  task_id: string
+  entry_user_id: string | null
+  actor_id: string | null
+  action: string
+  old_value: Record<string, unknown> | null
+  new_value: Record<string, unknown> | null
+  created_at: string
+}
+
+/** Journal d'audit des heures visibles (les siennes ; celles de son équipe pour un chef de projet). */
+export function useTimeAudit() {
+  return useQuery({
+    queryKey: ["time-audit"],
+    queryFn: async () =>
+      (await fetchAll((from, to) =>
+        getSupabase().from("time_entry_audit").select("*").order("created_at", { ascending: false }).range(from, to)
+      )) as AuditRow[],
+  })
 }

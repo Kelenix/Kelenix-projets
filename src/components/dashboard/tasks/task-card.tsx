@@ -10,6 +10,7 @@ import { formatDuration, totals } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import { AssigneeMenu, BlockDialog, ChecklistAdd, DueDateControl, isolate, MoreMenu, PriorityMenu, StatusMenu } from "./card-actions"
 import { ChecklistProgress, InlineChecklist } from "./inline-checklist"
+import { TagChips } from "../tags"
 import { BlockedBadge, statusAccent } from "./task-meta"
 import { TaskTime } from "./task-time"
 
@@ -79,6 +80,7 @@ export function TaskCard({
           {task.title}
         </button>
         {task.description && <p className="mt-1 line-clamp-3 text-xs whitespace-pre-line text-muted-foreground">{task.description}</p>}
+        <TagChips ids={task.tag_ids} className="mt-1.5" />
       </div>
 
       {task.is_blocked && (

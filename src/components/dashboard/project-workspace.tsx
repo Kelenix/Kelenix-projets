@@ -10,6 +10,7 @@ import { formatDate, PROJECT_ROLE_LABELS, type Project, type Task } from "@/lib/
 import { useClients, useProfiles, useProjects, useTasks, useUpdateProject } from "@/lib/queries"
 import { ProjectProgress } from "./project-progress"
 import { BudgetMeter, Milestones, TaskCountsRow } from "./project-tracking"
+import { TagChips, TagPicker } from "./tags"
 import { useDashboard } from "./state"
 import { Assignee, ProjectStatusBadge } from "./tasks/task-meta"
 import { TaskViews } from "./tasks/task-views"
@@ -83,6 +84,10 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
               <h2 className="text-xl font-semibold tracking-tight">{project.name}</h2>
               <ProjectStatusBadge status={project.status} />
               {project.archived_at && <span className="text-xs font-medium text-muted-foreground">Archivé</span>}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {canManage(project.id) && <TagPicker target="project" id={project.id} selected={project.tag_ids} label={`Tags du projet « ${project.name} »`} />}
+              <TagChips ids={project.tag_ids} />
             </div>
             <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
               <div className="flex gap-1.5">

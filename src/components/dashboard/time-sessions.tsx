@@ -1,6 +1,6 @@
 "use client"
 
-import { Coffee, History, Loader2, Pencil, Plus, TriangleAlert } from "lucide-react"
+import { Check, Coffee, History, Loader2, Pencil, Plus, TriangleAlert } from "lucide-react"
 import { useMemo, useState } from "react"
 import { Field } from "@/components/field"
 import { NativeSelect } from "@/components/native-select"
@@ -22,7 +22,15 @@ import {
   type Task,
   type TimeEntry,
 } from "@/lib/domain"
-import { useEditTimeEntry, useLogTime, useSetPauseReason, useSetTimeDescription, useTimeChanges } from "@/lib/queries"
+import {
+  useApproveTimeEntries,
+  useEditTimeEntry,
+  useLogTime,
+  useSetBillable,
+  useSetPauseReason,
+  useSetTimeDescription,
+  useTimeChanges,
+} from "@/lib/queries"
 import { editSessionSchema, fieldErrors, manualTimeSchema } from "@/lib/schemas"
 import { formatDuration, totals } from "@/lib/time"
 import { cn } from "@/lib/utils"
@@ -43,7 +51,8 @@ const toLocalInput = (iso: string) => {
 /** Une session se corrige par son auteur, un chef du projet ou un administrateur (comme en base). */
 function useCanEdit() {
   const { viewer, canManage } = useDashboard()
-  return (e: TimeEntry & { task: Pick<Task, "project_id"> }) => e.user_id === viewer.id || canManage(e.task.project_id)
+  return (e: TimeEntry & { task: Pick<Task, "project_id"> }) =>
+    canManage(e.task.project_id) || (e.user_id === viewer.id && !e.approved_at)
 }
 
 /** Temps passé d'un projet : feuille de temps, totaux par tâche, historique, ajout d'heures oubliées. */
@@ -163,6 +172,9 @@ function SessionHistory({
   showTask?: boolean
 }) {
   const canEdit = useCanEdit()
+  const { canManage } = useDashboard()
+  const approve = useApproveTimeEntries()
+  const setBillable = useSetBillable()
   const [editing, setEditing] = useState<Session | null>(null)
   const { data: changes = [] } = useTimeChanges(scope)
   const names = useMemo(() => new Map(profiles.map((p) => [p.id, p.full_name])), [profiles])
@@ -180,6 +192,9 @@ function SessionHistory({
     filter === "all" ? true : filter === "work" ? s.kind !== "pause" : filter === "pause" ? s.kind === "pause" : isLongPause(s, now)
   )
 
+  // Sessions de travail terminées, à valider, que l'utilisateur peut valider (chef du projet, administrateur).
+  const toApprove = shown.filter((x) => x.kind !== "pause" && x.ended_at && x.id && !x.approved_at && canManage(x.task.project_id))
+
   if (sessions.length === 0)
     return <p className="rounded-xl border border-dashed bg-card/60 px-6 py-8 text-center text-sm text-muted-foreground">Aucune session enregistrée.</p>
 
@@ -189,6 +204,11 @@ function SessionHistory({
         <h3 className="flex items-center gap-2 text-sm font-semibold">
           <History className="size-4 text-muted-foreground" aria-hidden /> Historique des sessions
         </h3>
+        {toApprove.length > 0 && (
+          <Button size="sm" variant="outline" disabled={approve.isPending} onClick={() => approve.mutate({ ids: toApprove.map((x) => x.id!), approved: true })}>
+            <Check aria-hidden /> Valider les heures affichées ({toApprove.length})
+          </Button>
+        )}
         <Tabs value={filter} onValueChange={(v) => setFilter(v as typeof filter)}>
           <TabsList aria-label="Filtrer l'historique">
             <TabsTrigger value="all">Tout</TabsTrigger>
@@ -224,6 +244,42 @@ function SessionHistory({
                     {s.kind === "pause" && <PauseBadges session={s} editable={canEdit(s)} now={now} />}
                     {s.source === "manual" && <Badge variant="outline">Ajout manuel</Badge>}
                     {s.edited_at && <Badge variant="outline">Modifiée</Badge>}
+                    {s.kind !== "pause" && s.id && s.ended_at && (
+                      <>
+                        {s.approved_at ? (
+                          <Badge className="bg-success/15 text-[oklch(0.42_0.11_155)] dark:text-success">
+                            <Check aria-hidden /> Validée
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-muted-foreground">
+                            À valider
+                          </Badge>
+                        )}
+                        <button
+                          type="button"
+                          disabled={!canEdit(s) || setBillable.isPending}
+                          aria-pressed={s.billable !== false}
+                          aria-label={s.billable === false ? "Non facturable : rendre facturable" : "Facturable : rendre non facturable"}
+                          onClick={() => setBillable.mutate({ id: s.id!, billable: s.billable === false })}
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-xs font-medium disabled:cursor-default",
+                            s.billable === false ? "text-muted-foreground" : "border-primary/30 bg-primary/10 text-primary"
+                          )}
+                        >
+                          {s.billable === false ? "Non facturable" : "Facturable"}
+                        </button>
+                        {canManage(s.task.project_id) && (
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            disabled={approve.isPending}
+                            onClick={() => approve.mutate({ ids: [s.id!], approved: !s.approved_at })}
+                          >
+                            {s.approved_at ? "Retirer la validation" : "Valider"}
+                          </Button>
+                        )}
+                      </>
+                    )}
                     {showTask && <span className="truncate text-xs text-muted-foreground">· {s.task.title}</span>}
                     {canEdit(s) && s.ended_at && s.kind !== "pause" && s.id && (
                       <Button variant="ghost" size="icon-xs" className="ml-auto" aria-label="Modifier la session" onClick={() => setEditing(s)}>

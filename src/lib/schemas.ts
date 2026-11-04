@@ -41,6 +41,11 @@ export const projectSchema = z.object({
     .refine((v) => v === "" || /^\d+([.,]\d+)?$/.test(v), "Indiquez un nombre d'heures (ex. 40 ou 12,5).")
     .transform((v) => (v ? Math.round(Number(v.replace(",", ".")) * 60) : null))
     .refine((m) => m === null || (m >= 1 && m <= 6_000_000), "Budget entre 1 minute et 100 000 heures."),
+  /** Case à cocher : présente (« on ») si les nouvelles heures du projet sont facturables. */
+  billable_default: z
+    .string()
+    .optional()
+    .transform((v) => v === "on"),
   member_ids: z.array(z.string()),
 })
 

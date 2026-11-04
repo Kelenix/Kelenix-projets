@@ -25,6 +25,7 @@ const task = (over: Partial<Task>): Task => ({
   assignees: [],
   comment_count: 0,
   link_count: 0,
+  tag_ids: [],
   time_entries: [],
   ...over,
 })
@@ -111,8 +112,32 @@ describe("rapports", () => {
 
   it("CSV pour Excel en français : « ; », virgule décimale, durées en heures", () => {
     const csv = toCsv(buildReport("people", input)).split(/\r\n/)
-    expect(csv[0]).toBe("Collaborateur;Jours travaillés;Sessions;Tâches;Travail (h);Pauses (h);Moyenne par jour travaillé (h)")
-    expect(csv[1]).toBe("Alice;2;2;1;3;0,5;1,5")
-    expect(csv.at(-1)).toBe("Total;;3;;4;0,5;")
+    expect(csv[0]).toBe("Collaborateur;Jours travaillés;Sessions;Tâches;Travail (h);dont facturable (h);Pauses (h);Moyenne par jour travaillé (h)")
+    expect(csv[1]).toBe("Alice;2;2;1;3;3;0,5;1,5")
+    expect(csv.at(-1)).toBe("Total;;3;;4;4;0,5;")
+  })
+
+  it("filtres facturation et validation : seul le travail correspondant est compté", () => {
+    const mixed = [
+      task({
+        time_entries: [
+          { user_id: "a", started_at: at(2, 9), ended_at: at(2, 11), kind: "work", billable: true, approved_at: "2026-11-03T08:00:00Z" },
+          { user_id: "a", started_at: at(3, 9), ended_at: at(3, 10), kind: "work", billable: false, approved_at: null },
+        ],
+      }),
+    ]
+    const base = { ...input, tasks: mixed }
+    expect(buildReport("people", base).rows[0]).toMatchObject({ work: 3 * h, billable: 2 * h })
+    expect(buildReport("people", { ...base, filters: { ...filters, billing: "not_billable" } }).rows[0]).toMatchObject({ work: h })
+    expect(buildReport("people", { ...base, filters: { ...filters, approval: "approved" } }).rows[0]).toMatchObject({ work: 2 * h })
+  })
+
+  it("journal d'audit : actions de la période, avec l'auteur des heures et celui de l'action", () => {
+    const audit = [
+      { entry_id: "e", task_id: "t1", entry_user_id: "a", actor_id: "b", action: "approve", old_value: null, new_value: { started_at: at(2, 9), ended_at: at(2, 11) }, created_at: at(4, 10) },
+      { entry_id: "e", task_id: "t1", entry_user_id: "a", actor_id: "a", action: "edit", old_value: null, new_value: null, created_at: at(20, 10) },
+    ]
+    const r = buildReport("audit", { ...input, audit })
+    expect(r.rows).toEqual([expect.objectContaining({ action: "Validation", person: "Alice", actor: "Bruno", task: "Maquettes" })])
   })
 })
