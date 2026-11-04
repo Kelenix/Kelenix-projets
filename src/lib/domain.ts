@@ -4,6 +4,7 @@ export type Profile = Tables<"profiles">
 export type Client = Tables<"clients">
 /** Projet avec ses membres ; `manager_ids` : ses chefs de projet. */
 export type Project = Tables<"projects"> & { member_ids: string[]; manager_ids: string[] }
+export type Milestone = Tables<"project_milestones">
 export type ChecklistItem = Pick<Tables<"task_checklist_items">, "id" | "label" | "done">
 export type TimeEntry = Pick<Tables<"time_entries">, "user_id" | "started_at" | "ended_at"> &
   Partial<Pick<Tables<"time_entries">, "id" | "kind" | "description" | "source" | "edited_at" | "pause_reason">>
@@ -133,3 +134,27 @@ export function isLongPause(e: TimeEntry, now = Date.now()) {
   const ms = (e.ended_at ? Date.parse(e.ended_at) : now) - Date.parse(e.started_at)
   return ms > PAUSE_REASONS[pauseReasonOf(e)].maxMinutes * 60_000
 }
+
+export type BudgetLevel = "ok" | "warning" | "over"
+
+/** Consommation du budget d'heures : alerte à 80 %, dépassement au-delà de 100 %. */
+export function budgetStatus(workMs: number, budgetMinutes: number | null) {
+  if (!budgetMinutes) return null
+  const budgetMs = budgetMinutes * 60_000
+  const percent = Math.round((workMs / budgetMs) * 100)
+  const level: BudgetLevel = workMs > budgetMs ? "over" : percent >= 80 ? "warning" : "ok"
+  return { budgetMs, percent, level, overMs: Math.max(0, workMs - budgetMs) }
+}
+
+/** Tâches terminées, en cours et en retard. */
+export function taskCounts(tasks: Pick<Task, "status" | "due_date">[], today = todayISO()) {
+  return {
+    done: tasks.filter((t) => t.status === "done").length,
+    inProgress: tasks.filter((t) => t.status === "in_progress").length,
+    late: tasks.filter((t) => isOverdue(t, today)).length,
+  }
+}
+
+/** Jalon en retard : échéance passée sans être atteint. */
+export const isMilestoneLate = (m: Pick<Milestone, "due_date" | "done_at">, today = todayISO()) =>
+  !m.done_at && m.due_date < today

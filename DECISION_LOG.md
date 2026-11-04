@@ -5,6 +5,22 @@
 
 ---
 
+## ADR-019 — Suivi des projets : budget d'heures, alertes, jalons
+
+- **Date** : 2026-11-04
+- **Statut** : Accepté
+- **Décideur** : Claude (rôle : solution-architect)
+- **Contexte** : Demande « Suivi des projets » (45–54) : budget d'heures, alerte de dépassement, jalons, charge de travail, tâches qui dépassent leur estimation.
+- **Décision** :
+  - `projects.budget_minutes` (facultatif), modifiable par qui peut modifier le projet (administrateur, chef de projet) ; table `project_milestones` (lecture : membres ; écriture : chefs du projet et administrateurs), RLS testée.
+  - Alerte **dans l'application** (pas d'e-mail : aucun serveur SMTP) : avertissement dès 80 % du budget, alerte rouge au-delà de 100 %, sur la vue d'ensemble, la carte du projet et sa fiche.
+  - Dépassement d'une tâche = travail réel de l'équipe > somme des temps estimés de ses collaborateurs ; charge de travail = tâches ouvertes, retards et reste à faire estimé (estimé − temps déjà passé).
+- **Alternatives écartées** : alerte par e-mail (nécessite un service d'envoi et des identifiants à configurer) ; calcul côté base (volumes faibles, calcul déjà disponible côté client avec les sessions chargées).
+- **Conséquences** : les indicateurs se mettent à jour en direct avec le chronomètre ; une alerte par e-mail pourra s'ajouter plus tard sans changer le modèle.
+- **Impact** : fonctionnel
+
+---
+
 ## ADR-018 — Rôles administrateur / chef de projet / collaborateur, affectation multiple, rapports
 
 - **Date** : 2026-11-03

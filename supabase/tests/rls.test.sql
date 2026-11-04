@@ -1,6 +1,6 @@
 -- Tests RLS (pgTAP) : `pnpm test:db`. S'appuie sur les comptes de démo de seed.sql.
 begin;
-select plan(56);
+select plan(61);
 
 create temp table projects_all_for_test on commit drop as select id from public.projects;
 grant select on projects_all_for_test to authenticated;
@@ -218,6 +218,16 @@ select throws_ok(
   'P0001', null, 'affectation multiple : uniquement des membres du projet'
 );
 
+select lives_ok(
+  $$insert into public.project_milestones (project_id, title, due_date)
+    values ('a0000000-0000-0000-0000-000000000001', 'Jalon du chef', current_date + 7)$$,
+  'chef de projet : ajoute un jalon à son projet'
+);
+select isnt_empty(
+  $$update public.projects set budget_minutes = 3000 where id = 'a0000000-0000-0000-0000-000000000001' returning id$$,
+  'chef de projet : fixe le budget d''heures de son projet'
+);
+
 -- Retour au collaborateur : les pauses des autres restent privées.
 select set_config('request.jwt.claims', '{"sub":"22222222-2222-2222-2222-222222222222","role":"authenticated"}', true);
 select is_empty(
@@ -231,6 +241,19 @@ select isnt_empty(
 select throws_ok(
   $$update public.profiles set can_view_reports = true where id = auth.uid()$$,
   'P0001', null, 'collaborateur : ne s''accorde pas l''accès aux rapports'
+);
+select isnt_empty(
+  $$select id from public.project_milestones where project_id = 'a0000000-0000-0000-0000-000000000001'$$,
+  'collaborateur : voit les jalons de ses projets'
+);
+select throws_ok(
+  $$insert into public.project_milestones (project_id, title, due_date)
+    values ('a0000000-0000-0000-0000-000000000001', 'Intrus', current_date)$$,
+  '42501', null, 'collaborateur : ne crée pas de jalon'
+);
+select is_empty(
+  $$update public.projects set budget_minutes = 1 where id = 'a0000000-0000-0000-0000-000000000001' returning id$$,
+  'collaborateur : ne modifie pas le budget d''heures'
 );
 
 -- Propriétaire : voit et gère tout.

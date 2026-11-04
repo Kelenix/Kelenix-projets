@@ -1,8 +1,9 @@
 "use client"
 
 import { Clock, Coffee, Play } from "lucide-react"
-import { initials, isAssigned, PAUSE_REASONS, pauseReasonOf, type Profile, type Task } from "@/lib/domain"
-import { currentActivity, estimateVsActual, formatDuration } from "@/lib/time"
+import { initials, isAssigned, PAUSE_REASONS, pauseReasonOf, todayISO, type Profile, type Task } from "@/lib/domain"
+import { currentActivity, estimateVsActual, formatDuration, overrunTasks, workload } from "@/lib/time"
+import { cn } from "@/lib/utils"
 import { useDashboard } from "./state"
 import { Gap } from "./tasks/task-meta"
 import { useTick } from "./timesheet"
@@ -155,5 +156,83 @@ export function EstimateTable({ tasks, people }: { tasks: Task[]; people: Profil
         </tbody>
       </table>
     </div>
+  )
+}
+
+/**
+ * Charge de travail : tâches ouvertes, retards et reste à faire estimé de chaque collaborateur ;
+ * la barre compare son reste à faire à celui du plus chargé.
+ */
+export function WorkloadTable({ tasks, people }: { tasks: Task[]; people: Profile[] }) {
+  const { viewer } = useDashboard()
+  const rows = workload(tasks, people.map((p) => p.id), todayISO())
+  const names = new Map(people.map((p) => [p.id, p.full_name]))
+  const max = Math.max(...rows.map((r) => r.remainingMs), 1)
+
+  return (
+    <div className="-mx-4 overflow-x-auto px-4">
+      <table className="w-full min-w-[560px] text-sm">
+        <caption className="sr-only">Charge de travail par collaborateur</caption>
+        <thead>
+          <tr className="border-b text-left text-xs text-muted-foreground">
+            <th scope="col" className="py-2 pr-4 font-medium">Collaborateur</th>
+            <th scope="col" className="py-2 pr-4 text-right font-medium">Tâches ouvertes</th>
+            <th scope="col" className="py-2 pr-4 text-right font-medium">En retard</th>
+            <th scope="col" className="py-2 pr-4 text-right font-medium">Reste à faire estimé</th>
+            <th scope="col" className="w-1/4 py-2 font-medium">Charge</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {rows.map((r) => (
+            <tr key={r.userId}>
+              <th scope="row" className="py-2.5 pr-4 text-left">
+                <Person name={names.get(r.userId)!} self={r.userId === viewer.id} />
+              </th>
+              <td className="py-2.5 pr-4 text-right tabular-nums">{r.open}</td>
+              <td className={cn("py-2.5 pr-4 text-right tabular-nums", r.late > 0 && "font-medium text-destructive")}>{r.late}</td>
+              <td className="py-2.5 pr-4 text-right tabular-nums">
+                {r.remainingMs > 0 ? formatDuration(r.remainingMs) : "—"}
+                {r.unestimated > 0 && (
+                  <span className="block text-xs text-muted-foreground">
+                    + {r.unestimated} non estimée{r.unestimated > 1 ? "s" : ""}
+                  </span>
+                )}
+              </td>
+              <td className="py-2.5">
+                <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
+                  <div className="h-full bg-primary" style={{ width: `${Math.round((r.remainingMs / max) * 100)}%` }} />
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+/** Tâches dont le travail réel de l'équipe dépasse le temps estimé, les plus gros dépassements d'abord. */
+export function OverrunList({ tasks }: { tasks: Task[] }) {
+  const { navigate } = useDashboard()
+  const rows = overrunTasks(tasks)
+  const byId = new Map(tasks.map((t) => [t.id, t]))
+  if (rows.length === 0)
+    return <p className="text-sm text-muted-foreground">Aucune tâche ne dépasse son temps estimé.</p>
+  return (
+    <ul className="divide-y" aria-label="Tâches qui prennent plus de temps que prévu">
+      {rows.map((r) => (
+        <li key={r.taskId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+          <button type="button" className="min-w-0 truncate text-left font-medium hover:underline" onClick={() => navigate({ taskId: r.taskId })}>
+            {byId.get(r.taskId)?.title}
+          </button>
+          <span className="tabular-nums">
+            <span className="text-muted-foreground">
+              {formatDuration(r.actualMs)} / {formatDuration(r.estimatedMs)} estimé ·{" "}
+            </span>
+            <span className="font-medium text-destructive">+{formatDuration(r.overMs)}</span>
+          </span>
+        </li>
+      ))}
+    </ul>
   )
 }

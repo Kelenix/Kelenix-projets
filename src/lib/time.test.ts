@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 import { isLongPause } from "./domain"
-import { currentActivity, estimateVsActual, formatDuration, periodBuckets, timeByUser, timeSince, timesheet, totals } from "./time"
+import { currentActivity, estimateVsActual, overrunTasks, workload, formatDuration, periodBuckets, timeByUser, timeSince, timesheet, totals } from "./time"
 
 const at = (min: number) => new Date(Date.UTC(2026, 10, 2, 9, min)).toISOString()
 const now = Date.parse(at(120))
@@ -136,5 +136,55 @@ describe("currentActivity", () => {
     ])
     expect(activity.get("a")).toMatchObject({ taskId: "t2", entry: { kind: "pause" } })
     expect(activity.has("b")).toBe(false)
+  })
+})
+
+describe("overrunTasks", () => {
+  it("relève les tâches dont le travail de l'équipe dépasse l'estimation totale", () => {
+    const rows = overrunTasks(
+      [
+        {
+          id: "t1",
+          assignees: [
+            { user_id: "a", estimated_minutes: 30 },
+            { user_id: "b", estimated_minutes: 30 },
+          ],
+          time_entries: [
+            { user_id: "a", started_at: at(0), ended_at: at(50), kind: "work" },
+            { user_id: "b", started_at: at(0), ended_at: at(20), kind: "work" },
+            { user_id: "b", started_at: at(20), ended_at: at(80), kind: "pause" },
+          ],
+        },
+        { id: "t2", assignees: [{ user_id: "a", estimated_minutes: null }], time_entries: [{ user_id: "a", started_at: at(0), ended_at: at(90) }] },
+        { id: "t3", assignees: [{ user_id: "a", estimated_minutes: 120 }], time_entries: [{ user_id: "a", started_at: at(0), ended_at: at(30) }] },
+      ],
+      now
+    )
+    expect(rows).toEqual([{ taskId: "t1", estimatedMs: 60 * 60_000, actualMs: 70 * 60_000, overMs: 10 * 60_000 }])
+  })
+})
+
+describe("workload", () => {
+  it("compte les tâches ouvertes, les retards et le reste à faire estimé de chacun", () => {
+    const rows = workload(
+      [
+        {
+          assignee_id: "a",
+          assignees: [{ user_id: "a", estimated_minutes: 120 }],
+          status: "in_progress",
+          due_date: "2026-11-01",
+          time_entries: [{ user_id: "a", started_at: at(0), ended_at: at(30), kind: "work" }],
+        },
+        { assignee_id: "a", assignees: [{ user_id: "a", estimated_minutes: null }], status: "todo", due_date: null, time_entries: [] },
+        { assignee_id: "a", assignees: [{ user_id: "a", estimated_minutes: 600 }], status: "done", due_date: null, time_entries: [] },
+      ],
+      ["a", "b"],
+      "2026-11-02",
+      now
+    )
+    expect(rows).toEqual([
+      { userId: "a", open: 2, late: 1, remainingMs: 90 * 60_000, unestimated: 1 },
+      { userId: "b", open: 0, late: 0, remainingMs: 0, unestimated: 0 },
+    ])
   })
 })

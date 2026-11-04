@@ -141,6 +141,14 @@ function ProjectForm({ project, onDone }: { project?: Project; onDone: () => voi
             ))}
           </NativeSelect>
         </Field>
+        <Field label="Budget d'heures (facultatif)" error={errors.budget_minutes} hint="Alerte à 80 % et en cas de dépassement.">
+          <Input
+            name="budget_minutes"
+            inputMode="decimal"
+            placeholder="ex. 40"
+            defaultValue={project?.budget_minutes ? String(project.budget_minutes / 60).replace(".", ",") : ""}
+          />
+        </Field>
       </div>
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">Membres autorisés</legend>

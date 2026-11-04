@@ -187,6 +187,15 @@ begin
     ('b0000000-0000-0000-0000-000000000122', alex, 60)
   on conflict (task_id, user_id) do update set estimated_minutes = excluded.estimated_minutes;
 
+  -- Budgets d'heures (la refonte dépasse le sien) et jalons.
+  update public.projects set budget_minutes = 15 * 60 where id = 'a0000000-0000-0000-0000-000000000010';
+  update public.projects set budget_minutes = 60 * 60 where id = 'a0000000-0000-0000-0000-000000000011';
+  insert into public.project_milestones (project_id, title, due_date, done_at) values
+    ('a0000000-0000-0000-0000-000000000010', 'Cadrage terminé', current_date - 40, today - interval '40 days'),
+    ('a0000000-0000-0000-0000-000000000010', 'Maquettes validées', current_date - 9, today - interval '9 days'),
+    ('a0000000-0000-0000-0000-000000000010', 'Recette client', current_date - 1, null),
+    ('a0000000-0000-0000-0000-000000000010', 'Mise en ligne', current_date + 14, null);
+
   -- Un chronomètre en cours (Inès sur « Optimisation des images »), si elle n'en a pas déjà un.
   insert into public.time_entries (task_id, user_id, started_at)
   select 'b0000000-0000-0000-0000-000000000108', ines, now() - interval '25 minutes'

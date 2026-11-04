@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { compareByDueDate, initials, isOverdue, normalize, projectProgress, todayISO, type Task } from "./domain"
+import { budgetStatus, compareByDueDate, isMilestoneLate, taskCounts, initials, isOverdue, normalize, projectProgress, todayISO, type Task } from "./domain"
 
 const task = (over: Partial<Task>): Task => ({
   id: "1",
@@ -72,5 +72,34 @@ describe("utilitaires", () => {
   })
   it("normalize retire accents et casse", () => {
     expect(normalize("Écran Équipe")).toBe("ecran equipe")
+  })
+})
+
+describe("budgetStatus", () => {
+  it("alerte à 80 % et signale le dépassement", () => {
+    expect(budgetStatus(0, null)).toBeNull()
+    expect(budgetStatus(7 * 3_600_000, 10 * 60)).toMatchObject({ percent: 70, level: "ok", overMs: 0 })
+    expect(budgetStatus(8 * 3_600_000, 10 * 60)).toMatchObject({ percent: 80, level: "warning" })
+    expect(budgetStatus(12 * 3_600_000, 10 * 60)).toMatchObject({ percent: 120, level: "over", overMs: 2 * 3_600_000 })
+  })
+})
+
+describe("taskCounts et jalons", () => {
+  it("compte terminées, en cours et en retard", () => {
+    const counts = taskCounts(
+      [
+        { status: "done", due_date: "2026-01-01" },
+        { status: "in_progress", due_date: "2026-10-01" },
+        { status: "rescheduled", due_date: null },
+        { status: "todo", due_date: "2026-10-01" },
+      ],
+      "2026-11-02"
+    )
+    expect(counts).toEqual({ done: 1, inProgress: 1, late: 2 })
+  })
+  it("un jalon est en retard s'il n'est pas atteint à son échéance", () => {
+    expect(isMilestoneLate({ due_date: "2026-11-01", done_at: null }, "2026-11-02")).toBe(true)
+    expect(isMilestoneLate({ due_date: "2026-11-01", done_at: "2026-11-01T10:00:00Z" }, "2026-11-02")).toBe(false)
+    expect(isMilestoneLate({ due_date: "2026-11-02", done_at: null }, "2026-11-02")).toBe(false)
   })
 })

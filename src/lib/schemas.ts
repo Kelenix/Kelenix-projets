@@ -34,7 +34,19 @@ export const projectSchema = z.object({
   client_id: z.string().transform((v) => v || null),
   due_date: optionalDate,
   status: z.enum(["planned", "in_progress", "paused", "done"]),
+  /** Budget en heures (« 40 », « 12,5 ») converti en minutes ; vide = sans budget. */
+  budget_minutes: z
+    .string()
+    .trim()
+    .refine((v) => v === "" || /^\d+([.,]\d+)?$/.test(v), "Indiquez un nombre d'heures (ex. 40 ou 12,5).")
+    .transform((v) => (v ? Math.round(Number(v.replace(",", ".")) * 60) : null))
+    .refine((m) => m === null || (m >= 1 && m <= 6_000_000), "Budget entre 1 minute et 100 000 heures."),
   member_ids: z.array(z.string()),
+})
+
+export const milestoneSchema = z.object({
+  title: z.string().trim().min(1, "Le titre est obligatoire.").max(200, "200 caractères maximum."),
+  due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Choisissez une date."),
 })
 
 export const taskSchema = z

@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { formatDate, PROJECT_ROLE_LABELS, type Project, type Task } from "@/lib/domain"
 import { useClients, useProfiles, useProjects, useTasks, useUpdateProject } from "@/lib/queries"
 import { ProjectProgress } from "./project-progress"
+import { BudgetMeter, Milestones, TaskCountsRow } from "./project-tracking"
 import { useDashboard } from "./state"
 import { Assignee, ProjectStatusBadge } from "./tasks/task-meta"
 import { TaskViews } from "./tasks/task-views"
@@ -121,10 +122,15 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
           )}
         </div>
 
-        <div className="mt-5 grid gap-5 border-t pt-5 sm:grid-cols-2">
-          <div>
-            <h3 className="mb-2 text-sm font-semibold">Avancement</h3>
+        <div className="mt-5 grid gap-5 border-t pt-5 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold">Avancement</h3>
             <ProjectProgress tasks={tasks} />
+            <TaskCountsRow tasks={tasks} />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-sm font-semibold">Heures investies</h3>
+            <BudgetMeter project={project} tasks={tasks} />
           </div>
           <div>
             <h3 className="mb-2 text-sm font-semibold">Membres ({members.length})</h3>
@@ -141,6 +147,10 @@ export function ProjectWorkspace({ projectId }: { projectId: string }) {
             </ul>
           </div>
         </div>
+      </section>
+
+      <section className="rounded-xl border bg-card p-5 shadow-xs">
+        <Milestones projectId={project.id} canManage={canManage(project.id)} />
       </section>
 
       <section aria-labelledby="project-tasks" className="space-y-3">

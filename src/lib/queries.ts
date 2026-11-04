@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query"
 import { toast } from "sonner"
 import type { TablesInsert, TablesUpdate } from "@/lib/database.types"
-import type { Client, PauseReason, Profile, Project, ProjectRole, Task } from "@/lib/domain"
+import type { Client, Milestone, PauseReason, Profile, Project, ProjectRole, Task } from "@/lib/domain"
 import { getSupabase } from "@/lib/supabase/client"
 
 type PgError = { code?: string; message: string }
@@ -480,5 +480,42 @@ export function useSetPauseReason() {
     async (v: { id: string; reason: PauseReason }) =>
       unwrap(await getSupabase().rpc("set_pause_reason", { p_id: v.id, p_reason: v.reason })),
     "Motif de pause enregistré."
+  )
+}
+
+// ─── Jalons de projet ───────────────────────────────────────────────────────
+const milestoneKey = (projectId: string) => ["milestones", projectId] as const
+
+export function useMilestones(projectId: string) {
+  return useQuery({
+    queryKey: milestoneKey(projectId),
+    queryFn: async (): Promise<Milestone[]> =>
+      unwrap(await getSupabase().from("project_milestones").select("*").eq("project_id", projectId).order("due_date")),
+  })
+}
+
+export function useAddMilestone(projectId: string) {
+  return useAction(
+    async (values: { title: string; due_date: string }) =>
+      unwrap(await getSupabase().from("project_milestones").insert({ ...values, project_id: projectId })),
+    () => [milestoneKey(projectId)],
+    "Jalon ajouté."
+  )
+}
+
+/** Marquer un jalon atteint (ou le rouvrir), le renommer ou le décaler. */
+export function useUpdateMilestone(projectId: string) {
+  return useAction(
+    async ({ id, values }: { id: string; values: TablesUpdate<"project_milestones"> }) =>
+      unwrap(await getSupabase().from("project_milestones").update(values).eq("id", id)),
+    () => [milestoneKey(projectId)]
+  )
+}
+
+export function useDeleteMilestone(projectId: string) {
+  return useAction(
+    async (id: string) => unwrap(await getSupabase().from("project_milestones").delete().eq("id", id)),
+    () => [milestoneKey(projectId)],
+    "Jalon supprimé."
   )
 }

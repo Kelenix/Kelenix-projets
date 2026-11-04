@@ -11,7 +11,7 @@ import { memberStats, statusCounts, weeklyCompletions } from "@/lib/stats"
 import { formatDuration, timeSince } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import { StatusBar, StatusLegend, WeeklyBars } from "./charts"
-import { EstimateTable, TeamNow } from "./team-reports"
+import { EstimateTable, OverrunList, TeamNow, WorkloadTable } from "./team-reports"
 import { useDashboard } from "./state"
 import { Timesheet } from "./timesheet"
 
@@ -140,6 +140,15 @@ export function StatisticsSection() {
           <Card title="Temps estimé et temps réel par collaborateur">
             <EstimateTable tasks={stats.tasks} people={stats.people} />
           </Card>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Card title="Charge de travail par collaborateur">
+              <WorkloadTable tasks={stats.tasks} people={stats.people} />
+            </Card>
+            <Card title="Tâches qui prennent plus de temps que prévu">
+              <OverrunList tasks={stats.tasks} />
+            </Card>
+          </div>
 
           <Card title="Statistiques par membre">
             <div className="-mx-4 overflow-x-auto px-4">

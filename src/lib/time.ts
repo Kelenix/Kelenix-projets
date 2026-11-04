@@ -212,3 +212,55 @@ export function currentActivity(tasks: Pick<Task, "id" | "time_entries">[]) {
     for (const entry of task.time_entries) if (!entry.ended_at) activity.set(entry.user_id, { taskId: task.id, entry })
   return activity
 }
+
+export type Overrun = { taskId: string; estimatedMs: number; actualMs: number; overMs: number }
+
+/**
+ * Tâches qui prennent plus de temps que prévu : travail réel de l'équipe supérieur à la somme
+ * des temps estimés de ses collaborateurs. Les plus gros dépassements d'abord.
+ */
+export function overrunTasks(tasks: Pick<Task, "id" | "assignees" | "time_entries">[], now = Date.now()): Overrun[] {
+  const rows: Overrun[] = []
+  for (const t of tasks) {
+    const estimates = t.assignees.filter((a) => a.estimated_minutes !== null)
+    if (estimates.length === 0) continue
+    const estimatedMs = estimates.reduce((sum, a) => sum + a.estimated_minutes! * 60_000, 0)
+    const actualMs = totals(t.time_entries, now).work
+    if (actualMs > estimatedMs) rows.push({ taskId: t.id, estimatedMs, actualMs, overMs: actualMs - estimatedMs })
+  }
+  return rows.sort((a, b) => b.overMs - a.overMs)
+}
+
+export type Workload = {
+  userId: string
+  /** Tâches non terminées affectées à la personne. */
+  open: number
+  late: number
+  /** Reste à faire estimé : estimé moins temps déjà passé, sur ses tâches ouvertes (ms). */
+  remainingMs: number
+  /** Tâches ouvertes sans estimation (reste à faire inconnu). */
+  unestimated: number
+}
+
+/** Charge de travail de chaque personne, sur ses tâches ouvertes. */
+export function workload(
+  tasks: Pick<Task, "assignee_id" | "assignees" | "status" | "due_date" | "time_entries">[],
+  userIds: string[],
+  today: string,
+  now = Date.now()
+): Workload[] {
+  const rows = new Map(userIds.map((id) => [id, { userId: id, open: 0, late: 0, remainingMs: 0, unestimated: 0 }]))
+  for (const t of tasks) {
+    if (t.status === "done") continue
+    for (const id of new Set([t.assignee_id, ...t.assignees.map((a) => a.user_id)])) {
+      const row = id ? rows.get(id) : undefined
+      if (!row) continue
+      row.open++
+      if (t.due_date !== null && t.due_date < today) row.late++
+      const minutes = t.assignees.find((a) => a.user_id === id)?.estimated_minutes ?? null
+      if (minutes === null) row.unestimated++
+      else row.remainingMs += Math.max(0, minutes * 60_000 - totals(t.time_entries.filter((e) => e.user_id === id), now).work)
+    }
+  }
+  return [...rows.values()].sort((a, b) => b.remainingMs - a.remainingMs || b.open - a.open)
+}

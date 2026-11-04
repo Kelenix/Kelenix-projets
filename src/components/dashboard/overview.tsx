@@ -1,14 +1,16 @@
 "use client"
 
-import { CircleAlert, FolderKanban, ListTodo, SquareCheck } from "lucide-react"
+import { CircleAlert, FolderKanban, ListTodo, SquareCheck, TriangleAlert } from "lucide-react"
 import { useMemo } from "react"
 import { EmptyState, ErrorState } from "@/components/empty-state"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { compareByDueDate, isAssigned, isOverdue, type Task } from "@/lib/domain"
+import { budgetStatus, compareByDueDate, isAssigned, isOverdue, type Task } from "@/lib/domain"
 import { useProjects, useTasks } from "@/lib/queries"
+import { formatDuration, totals } from "@/lib/time"
 import { cn } from "@/lib/utils"
 import { ProjectProgress } from "./project-progress"
+import { BudgetBadge } from "./project-tracking"
 import { useDashboard } from "./state"
 import { ChecklistProgress } from "./tasks/inline-checklist"
 import { BlockedBadge, DueDate, PriorityBadge } from "./tasks/task-meta"
@@ -29,9 +31,20 @@ export function OverviewSection() {
     const activeProjects = projects
       .filter((p) => !p.archived_at && p.status === "in_progress")
       .sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"))
+    const tasksByProject = Map.groupBy(tasks, (t) => t.project_id)
+    // Alertes budget : projets non archivés à 80 % ou plus de leur budget d'heures, les pires d'abord.
+    const budgetAlerts = projects
+      .filter((p) => !p.archived_at)
+      .map((p) => ({
+        project: p,
+        budget: budgetStatus(totals((tasksByProject.get(p.id) ?? []).flatMap((t) => t.time_entries)).work, p.budget_minutes),
+      }))
+      .filter((a) => a.budget && a.budget.level !== "ok")
+      .sort((a, b) => b.budget!.percent - a.budget!.percent)
     return {
       activeProjects,
-      tasksByProject: Map.groupBy(tasks, (t) => t.project_id),
+      budgetAlerts,
+      tasksByProject,
       inProgress: tasks.filter((t) => t.status === "in_progress").length,
       late: tasks.filter((t) => isOverdue(t)).length,
       myNext: tasks.filter((t) => isAssigned(t, viewer.id) && t.status !== "done").sort(compareByDueDate).slice(0, 8),
@@ -46,6 +59,33 @@ export function OverviewSection() {
 
   return (
     <div className="space-y-8">
+      {data.budgetAlerts.length > 0 && (
+        <section
+          role="alert"
+          aria-label="Alertes de budget"
+          className="rounded-xl border border-destructive/30 bg-destructive/5 p-4"
+        >
+          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-destructive">
+            <TriangleAlert className="size-4" aria-hidden /> Budget d&apos;heures
+          </h2>
+          <ul className="space-y-1">
+            {data.budgetAlerts.map(({ project, budget }) => (
+              <li key={project.id}>
+                <button
+                  type="button"
+                  onClick={() => navigate({ section: "projects", projectId: project.id })}
+                  className="text-left text-sm hover:underline"
+                >
+                  <span className="font-medium">{project.name}</span> :{" "}
+                  {budget!.level === "over"
+                    ? `budget dépassé de ${formatDuration(budget!.overMs)} (${budget!.percent} %)`
+                    : `${budget!.percent} % du budget consommé`}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <div className="grid gap-4 sm:grid-cols-3">
         <Stat label="Projets actifs" value={data.activeProjects.length} icon={FolderKanban} loading={loading} />
         <Stat label="Tâches en cours" value={data.inProgress} icon={ListTodo} loading={loading} />
@@ -70,7 +110,10 @@ export function OverviewSection() {
                   >
                     <div className="mb-3 flex items-center justify-between gap-3">
                       <span className="truncate font-medium">{project.name}</span>
-                      {project.due_date && <DueDate task={{ due_date: project.due_date, status: "todo" }} />}
+                      <span className="flex items-center gap-2">
+                        <BudgetBadge project={project} tasks={data.tasksByProject.get(project.id) ?? []} />
+                        {project.due_date && <DueDate task={{ due_date: project.due_date, status: "todo" }} />}
+                      </span>
                     </div>
                     <ProjectProgress tasks={data.tasksByProject.get(project.id) ?? []} />
                   </button>

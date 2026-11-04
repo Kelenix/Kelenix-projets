@@ -12,6 +12,7 @@ import { normalize, PROJECT_STATUS_LABELS, type ProjectStatus, type Task } from 
 import { useClients, useProfiles, useProjects, useTasks } from "@/lib/queries"
 import { formatDuration, totals } from "@/lib/time"
 import { ProjectProgress } from "./project-progress"
+import { BudgetBadge } from "./project-tracking"
 import { ProjectWorkspace } from "./project-workspace"
 import { useDashboard } from "./state"
 import { Assignee, DueDate, ProjectStatusBadge } from "./tasks/task-meta"
@@ -44,6 +45,10 @@ function ProjectList() {
         (!q || normalize(p.name).includes(q))
     )
   }, [projectsQuery.data, query, status, clientId])
+
+  // Compteurs par statut (projets non archivés) : actifs, suspendus, terminés, prévus.
+  const live = (projectsQuery.data ?? []).filter((p) => !p.archived_at)
+  const byStatus = (s: ProjectStatus) => live.filter((p) => p.status === s).length
 
   if (projectsQuery.isError) return <ErrorState onRetry={() => projectsQuery.refetch()} />
 
@@ -81,6 +86,30 @@ function ProjectList() {
           ))}
         </NativeSelect>
       </div>
+
+      {live.length > 0 && (
+        <div role="group" aria-label="Projets par statut" className="flex flex-wrap gap-2">
+          {(
+            [
+              ["in_progress", "Actifs"],
+              ["paused", "Suspendus"],
+              ["done", "Terminés"],
+              ["planned", "Prévus"],
+            ] as const
+          ).map(([value, label]) => (
+            <Button
+              key={value}
+              size="sm"
+              variant={status === value ? "default" : "outline"}
+              aria-pressed={status === value}
+              onClick={() => setStatus(status === value ? "all" : value)}
+            >
+              {label}
+              <span className="rounded-full bg-background/20 px-1.5 text-xs tabular-nums">{byStatus(value)}</span>
+            </Button>
+          ))}
+        </div>
+      )}
 
       {projectsQuery.isPending ? (
         <div className="grid gap-3 md:grid-cols-2">
@@ -126,7 +155,10 @@ function ProjectList() {
                             {(project.client_id && clientNames.get(project.client_id)) || "Sans client"}
                           </p>
                         </div>
-                        <ProjectStatusBadge status={project.status} />
+                        <span className="flex shrink-0 flex-col items-end gap-1">
+                          <ProjectStatusBadge status={project.status} />
+                          <BudgetBadge project={project} tasks={tasksByProject.get(project.id) ?? []} />
+                        </span>
                       </div>
                       <div className="mt-auto w-full space-y-2">
                         <ProjectProgress tasks={tasksByProject.get(project.id) ?? []} />

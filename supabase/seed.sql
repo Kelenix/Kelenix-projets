@@ -63,3 +63,9 @@ from public.tasks,
      (values ('22222222-2222-2222-2222-222222222222'::uuid, 480), ('55555555-5555-5555-5555-555555555555'::uuid, 120)) as u (user_id, minutes)
 where title = 'Intégration du paiement'
 on conflict (task_id, user_id) do update set estimated_minutes = excluded.estimated_minutes;
+
+-- Suivi : budget d'heures et jalons.
+update public.projects set budget_minutes = 40 * 60 where id = 'a0000000-0000-0000-0000-000000000001';
+insert into public.project_milestones (project_id, title, due_date, done_at) values
+  ('a0000000-0000-0000-0000-000000000001', 'Maquettes validées', current_date - 10, now() - interval '9 days'),
+  ('a0000000-0000-0000-0000-000000000001', 'Mise en ligne', current_date + 30, null);
